@@ -1,0 +1,31 @@
+package localapi.desktop
+
+import theme.Tone
+
+enum ProxyState { Disconnected, Connecting, Waiting, Connected, Reconnecting, Disconnecting, Failed }
+
+value ProxyStatus {
+  ProxyState state = ProxyState.Disconnected
+  String detail = ""
+
+  String label { get {
+    "● " + switch state {
+      case Disconnected { break "未连接" }
+      case Connecting { break "连接中" }
+      case Waiting { break "等待网关" }
+      case Connected { break "已连接" }
+      case Reconnecting { break "重连中" }
+      case Disconnecting { break "断开中" }
+      case Failed { break "连接失败" }
+    }
+  } }
+
+  Tone tone { get {
+    switch state {
+      case Connected { break Tone.Success }
+      case Disconnected { break Tone.Neutral }
+      case Failed { break Tone.Danger }
+      case _ { break Tone.Warning }
+    }
+  } }
+}

@@ -1,0 +1,134 @@
+package localapi.proxy
+
+import std.concurrent.Task
+import std.concurrent.startTask
+import std.core.Exception
+import std.http.HttpHeader
+import std.http.HttpMethod
+import std.http.HttpRequest
+import std.http.Uri
+import std.http.systemHttpClient
+import std.io.ByteReader
+import std.io.ReadChunk
+import std.io.Bytes
+import std.io.bytes
+import std.io.readAll
+import std.io.use
+import std.time.duration
+import std.websocket.WebSocket
+import std.websocket.WebSocketEvent
+import std.websocket.connectWebSocket
+
+value HttpReply {
+  Integer status
+  Array<Header> headers
+  Bytes body
+}
+
+class Upload implements ByteReader {
+  Frame request
+  List<Bytes> chunks = []
+  Integer size = 0
+  Integer offset = 0
+
+  Upload(Frame request) { this.request = request }
+
+  Bytes? append(Frame part) {
+    var chunk = part.data ?? []
+    if chunk.size() > 8192 || this.size + chunk.size() > 8388608 {
+      throw Exception(message: "upload capacity exceeded")
+    }
+    if chunk.size() > 0 { this.chunks.add(bytes(values: chunk)) }
+    this.size = this.size + chunk.size()
+    if !(part.end ?? false) { return null }
+    var result = readAll(reader: this, maximumBytes: 8388608)
+    this.size = 0
+    return result
+  }
+
+  ReadChunk read(Integer maximumBytes) {
+    if this.chunks.isEmpty() { return ReadChunk.Eof }
+    var first = this.chunks[0]
+    Integer count = first.size() - this.offset
+    if count > maximumBytes { count = maximumBytes }
+    var result = first.slice(start: this.offset, length: count)
+    this.offset = this.offset + count
+    if this.offset == first.size() { this.chunks.removeAt(index: 0) this.offset = 0 }
+    return ReadChunk.Data(bytes: result)
+  }
+}
+
+class HttpWork {
+  String id
+  Task<HttpReply> task
+
+  HttpWork(String id, Task<HttpReply> task) { this.id = id this.task = task }
+}
+
+Task<HttpReply> forwardHttp(Configuration configuration, Frame request, Bytes body) {
+  String target = requestTarget(configuration: configuration, request: request, websocket: false)
+  HttpMethod method = switch request.method ?? "GET" {
+    case "GET" { break HttpMethod.Get }
+    case "POST" { break HttpMethod.Post }
+    case "PUT" { break HttpMethod.Put }
+    case "PATCH" { break HttpMethod.Patch }
+    case "DELETE" { break HttpMethod.Delete }
+    case "HEAD" { break HttpMethod.Head }
+    case "OPTIONS" { break HttpMethod.Options }
+    case _ { throw Exception(message: "unsupported HTTP method") }
+  }
+  return startTask<HttpReply> {
+    var response = systemHttpClient().send(
+      request: HttpRequest(method: method, uri: Uri(value: target), headers: requestHeaders(headers: request.headers ?? []), body: body),
+      timeout: duration(seconds: 30, nanoseconds: 0))
+    return use<HttpReply>(resource: response, body: () {
+      var original = response.headers().values
+      Array<Header> headers = Array.filled(size: original.size(), value: Header(name: "", value: ""))
+      for HttpHeader header,index : original { headers[index] = Header(name: header.name, value: header.value) }
+      return HttpReply(status: response.status().code, headers: headers,
+        body: readAll(reader: response, maximumBytes: 8388608))
+    })
+  }
+}
+
+class Download {
+  String id
+  String type
+  Bytes data
+  Boolean binary
+  Integer? status
+  Array<Header>? headers
+  Integer offset = 0
+
+  Download(String id, String type, Bytes data, Boolean binary, Integer? status = null, Array<Header>? headers = null) {
+    this.id = id this.type = type this.data = data this.binary = binary
+    this.status = status this.headers = headers
+  }
+
+  Frame next(String session) {
+    Integer count = this.data.size() - this.offset
+    if count > 8192 { count = 8192 }
+    var chunk = this.data.slice(start: this.offset, length: count).toArray()
+    this.offset = this.offset + count
+    return frame(type: this.type, session: session, id: this.id, data: chunk,
+      end: this.offset == this.data.size(), binary: this.binary, status: this.status, headers: this.headers)
+  }
+}
+
+class Tunnel {
+  String id
+  WebSocket socket
+  Task<WebSocketEvent> incoming
+  Upload upload
+
+  Tunnel(String id, WebSocket socket, Frame request) {
+    this.id = id this.socket = socket this.upload = Upload(request: request)
+    this.incoming = startTask<WebSocketEvent> { socket.receive(timeout: duration(seconds: 60, nanoseconds: 0)) }
+  }
+
+  Task<WebSocketEvent> read() {
+    return startTask<WebSocketEvent> { this.socket.receive(timeout: duration(seconds: 60, nanoseconds: 0)) }
+  }
+
+  Void close() { this.socket.close() this.incoming.cancel() }
+}

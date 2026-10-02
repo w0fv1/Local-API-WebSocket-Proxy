@@ -1,0 +1,23 @@
+package localapi.proxy
+
+import std.time.systemClock
+
+value CommunicationRecord {
+  Long epochSecond
+  Integer nanosecond
+  String direction
+  String message
+}
+
+class CommunicationHistory {
+  private List<CommunicationRecord> records = []
+
+  List<CommunicationRecord> snapshot() { return this.records }
+
+  Void record(String direction, String type, String message) {
+    if type == "ping" || type == "pong" || type == "ack" || type == "upload.ack" { return }
+    var now = systemClock().now()
+    this.records.add(CommunicationRecord(epochSecond: now.epochSecond(), nanosecond: now.nanosecond(), direction: direction, message: message))
+    if this.records.size() > 100 { this.records.removeAt(index: 0) }
+  }
+}

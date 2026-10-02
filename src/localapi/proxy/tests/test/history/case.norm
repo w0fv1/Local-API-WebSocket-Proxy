@@ -1,0 +1,30 @@
+package localapi.proxy.test.history
+
+import localapi.proxy.CommunicationHistory
+import std.testing.Test
+import std.testing.equal
+import std.testing.expectedOutputLines
+
+@Test()
+Void boundedMemoryHistory() {
+  var history = CommunicationHistory()
+  Integer index = 0
+  for index < 105 {
+    history.record(direction: "received", type: "http.request", message: index.toString())
+    index = index + 1
+  }
+  var snapshot = history.snapshot()
+  printLine(equal(actual: snapshot.size(), expected: 100))
+  printLine(equal(actual: snapshot[0].message, expected: "5"))
+  printLine(equal(actual: snapshot[99].message, expected: "104"))
+  history.record(direction: "sent", type: "pong", message: "ignored")
+  history.record(direction: "received", type: "ack", message: "ignored")
+  history.record(direction: "received", type: "ping", message: "ignored")
+  history.record(direction: "sent", type: "upload.ack", message: "ignored")
+  printLine(equal(actual: history.snapshot(), expected: snapshot))
+  history.record(direction: "sent", type: "http.response", message: "中文完整内容")
+  printLine(equal(actual: history.snapshot()[99].message, expected: "中文完整内容"))
+  printLine(equal(actual: snapshot[99].message, expected: "104"))
+  printLine(equal(actual: CommunicationHistory().snapshot().size(), expected: 0))
+  expectedOutputLines(["true", "true", "true", "true", "true", "true", "true"])
+}

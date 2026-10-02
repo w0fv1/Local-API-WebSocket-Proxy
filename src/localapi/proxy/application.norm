@@ -1,0 +1,37 @@
+package localapi.proxy
+
+import std.concurrent.delay
+import std.core.Exception
+import std.filesystem.Path
+import std.filesystem.readText
+import std.http.Uri
+import std.io.TextEncoding
+import std.json.fromJson
+import std.time.duration
+import std.websocket.connectWebSocket
+
+Void main() {
+  var configuration = fromJson<Configuration>(value: readText(path: Path(value: "proxy.json"), encoding: TextEncoding.Utf8, maximumBytes: 16384))
+  runProxy(configuration: configuration, status: (String state) { printLine(state) })
+}
+
+Void runProxy(Configuration configuration, Function<Void(String)> status,
+    CommunicationHistory history = CommunicationHistory()) {
+  configuration.validate()
+  Long backoff = 1
+  for true {
+    status("connecting")
+    try {
+      var socket = connectWebSocket(uri: Uri(value: configuration.controlUrl), timeout: duration(seconds: 10, nanoseconds: 0))
+      var session = Session(configuration: configuration, socket: socket, status: status, history: history)
+      try { session.run() } finally {
+        if session.peer != "" { backoff = 1 }
+        session.close()
+      }
+    } catch Exception error {
+      status("disconnected: " + error.message)
+    }
+    delay(duration: duration(seconds: backoff, nanoseconds: 0))
+    if backoff < 16 { backoff = backoff * 2 }
+  }
+}

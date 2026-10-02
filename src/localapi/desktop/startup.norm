@@ -1,0 +1,59 @@
+package localapi.desktop
+
+import std.application.applicationDirectory
+import std.context.currentContext
+import std.core.Exception
+import std.core.Unit
+import std.io.TextEncoding
+import std.io.decodeText
+import std.json.fromJson
+import std.process.runProcess
+import ui.Binding
+import ui.Column
+import ui.Text
+import ui.component.Switch
+import ui.ViewScope
+import ui.Widget
+import ui.WidgetRole
+
+class StartupToggle implements Widget {
+  Boolean enabled = false
+  Boolean busy = true
+  String error = ""
+  ViewScope? scope = null
+
+  Void init() {
+    this.scope = currentContext<ViewScope>()!!
+    this.update()
+  }
+
+  Void update(Boolean? desired = null) {
+    this.busy = true
+    this.error = ""
+    var owner = this.scope!!
+    owner.start<Unit>(() {
+      try {
+        var directory = applicationDirectory()
+        List<String> arguments = ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-File", directory.value + "/startup.ps1", "-Directory", directory.value]
+        if desired != null {
+          var changed = runProcess(executable: "powershell.exe", arguments: [...arguments, "-Action", if desired { "Enable" } else { "Disable" }])
+          if changed.exitCode != 0 { throw Exception(message: decodeText(content: changed.stderr, encoding: TextEncoding.Utf8)) }
+        }
+        var result = runProcess(executable: "powershell.exe", arguments: [...arguments, "-Action", "Query"])
+        if result.exitCode != 0 { throw Exception(message: decodeText(content: result.stderr, encoding: TextEncoding.Utf8)) }
+        var enabled = fromJson<Boolean>(value: decodeText(content: result.stdout, encoding: TextEncoding.Utf8))
+        owner.dispatch(() { this.enabled = enabled this.busy = false })
+      } catch Exception error {
+        owner.dispatch(() { this.error = "开机启动设置失败：" + error.message this.busy = false })
+      }
+      return Unit.Value
+    })
+  }
+
+  Widget build() {
+    return Column(content: () {
+      Switch(text: "开机启动", value: Binding<Boolean>(read: () { this.enabled }, write: (Boolean enabled) { this.update(enabled) }), enabled: !this.busy)
+      if this.error != "" { Text(text: this.error, role: WidgetRole.Destructive) }
+    })
+  }
+}

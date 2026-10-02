@@ -1,0 +1,8 @@
+Module module() {
+  return module(name: "localapi.desktop", version: 1, dependencies: [
+    dependency(repository: "github", name: "localapi.proxy", version: 1),
+    dependency(repository: "github", name: "ui", version: 5),
+    dependency(repository: "github", name: "ui.component", version: 4),
+    dependency(repository: "github", name: "theme", version: 1)
+  ])
+}

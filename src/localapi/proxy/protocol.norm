@@ -1,0 +1,86 @@
+package localapi.proxy
+
+import std.serialization.Serializable
+import std.http.HttpHeader
+import std.http.HeaderMap
+import std.core.Exception
+
+@Serializable()
+value Configuration {
+  String controlUrl
+  String localBaseUrl
+
+  Void validate() {
+    if !(this.controlUrl.startsWith(prefix: "ws://") || this.controlUrl.startsWith(prefix: "wss://")) {
+      throw Exception(message: "Control URL 必须以 ws:// 或 wss:// 开头")
+    }
+    if !(this.localBaseUrl.startsWith(prefix: "http://") || this.localBaseUrl.startsWith(prefix: "https://")) {
+      throw Exception(message: "Local Base URL 必须以 http:// 或 https:// 开头")
+    }
+  }
+}
+
+@Serializable()
+value Header {
+  String name
+  String value
+}
+
+@Serializable()
+value Frame {
+  String type
+  String session
+  String id
+  Integer? version
+  String? method
+  String? path
+  Integer? port
+  Array<Header>? headers
+  Array<Integer>? data
+  Boolean? end
+  Boolean? binary
+  Integer? status
+  String? error
+}
+
+Frame frame(String type, String session, String id = "", Integer? version = null,
+    Array<Integer>? data = null, Boolean? end = null, Boolean? binary = null,
+    Integer? status = null, Array<Header>? headers = null, String? error = null) {
+  return Frame(type: type, session: session, id: id, version: version, method: null,
+    path: null, port: null, headers: headers, data: data, end: end,
+    binary: binary, status: status, error: error)
+}
+
+HeaderMap requestHeaders(Array<Header> headers) {
+  Array<HttpHeader> values = Array.filled(size: headers.size(), value: HttpHeader(name: "", value: ""))
+  for Header header,index : headers {
+    values[index] = HttpHeader(name: header.name, value: header.value)
+  }
+  return HeaderMap(values: values)
+}
+
+String requestTarget(Configuration configuration, Frame request, Boolean websocket) {
+  String path = request.path ?? "/"
+  if !path.startsWith(prefix: "/") || path.startsWith(prefix: "//") || path.contains(value: "\\") || path.contains(value: "#") {
+    throw Exception(message: "path must be an absolute path on the configured local host")
+  }
+  if !websocket { return configuration.localBaseUrl + path }
+  var parts = configuration.localBaseUrl.split(separator: "://")
+  String authority = parts[1].split(separator: "/")[0]
+  Integer? port = request.port
+  if port != null {
+    if port < 1 || port > 65535 { throw Exception(message: "invalid WebSocket port") }
+    String host = authority.split(separator: ":")[0]
+    if authority.startsWith(prefix: "[") { host = authority.split(separator: "]")[0] + "]" }
+    authority = host + ":" + port.toString()
+  }
+  String scheme = "ws://"
+  if parts[0] == "https" { scheme = "wss://" }
+  return scheme + authority + path
+}
+
+List<T> without<T>(List<T> values, T target) {
+  List<T> result = []
+  for T value : values { if value != target { result.add(value) } }
+  return result
+}

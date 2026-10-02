@@ -1,0 +1,38 @@
+package localapi.proxy.test.settings
+
+import localapi.proxy.ProxyDefinition
+import localapi.proxy.ProxySettings
+import localapi.proxy.CommunicationHistory
+import std.json.fromJson
+import std.json.toJson
+import std.testing.Test
+import std.testing.equal
+import std.testing.expectedOutputLines
+import std.core.Exception
+
+@Test()
+Void independentProfilesRoundTrip() {
+  var first = ProxyDefinition(id: 1, name: "比特浏览器", controlUrl: "ws://localhost/one?role=client", localBaseUrl: "http://localhost:54345", enabled: true)
+  var second = ProxyDefinition(id: 2, name: "另一个 API", controlUrl: "ws://localhost/two?role=client", localBaseUrl: "http://localhost:54346", enabled: false)
+  var settings = ProxySettings(proxies: [first, second])
+  settings.validate()
+  var restored = fromJson<ProxySettings>(value: toJson(value: settings))
+  printLine(equal(actual: restored, expected: settings))
+  var one = CommunicationHistory()
+  var two = CommunicationHistory()
+  one.record(direction: "sent", type: "http.request", message: "only first")
+  printLine(equal(actual: two.snapshot().size(), expected: 0))
+  printLine(equal(actual: restored.proxies[1].enabled, expected: false))
+  expectedOutputLines(["true", "true", "true"])
+}
+
+@Test()
+Void rejectsConflictingChannelsAndIdentifiers() {
+  var first = ProxyDefinition(id: 1, name: "one", controlUrl: "ws://localhost/one", localBaseUrl: "http://localhost:1", enabled: true)
+  var duplicate = ProxyDefinition(id: 2, name: "two", controlUrl: " ws://localhost/one ", localBaseUrl: "http://localhost:2", enabled: true)
+  try { ProxySettings(proxies: [first, duplicate]).validate() printLine("missed channel") }
+  catch Exception error { printLine("channel rejected") }
+  try { ProxySettings(proxies: [first, first]).validate() printLine("missed identity") }
+  catch Exception error { printLine("identity rejected") }
+  expectedOutputLines(["channel rejected", "identity rejected"])
+}

@@ -1,0 +1,110 @@
+package localapi.desktop
+
+import localapi.proxy.ProxyDefinition
+import localapi.proxy.ProxySettings
+import std.application.applicationDirectory
+import std.core.Exception
+import std.core.Unit
+import std.filesystem.Path
+import std.filesystem.FileException
+import std.filesystem.FileFailure
+import std.filesystem.FileWriteMode
+import std.filesystem.openWrite
+import std.filesystem.readText
+import std.io.TextEncoding
+import std.io.encodeText
+import std.io.writeAll
+import std.io.use
+import std.json.fromJson
+import std.json.toJson
+import ui.DesktopApp
+import ui.runApp
+import ui.Widget
+import ui.Text
+import ui.component.Button
+import ui.Column
+import ui.component.Layout
+import ui.component.Flex
+import ui.component.FlexItem
+import ui.component.Alignment
+import ui.component.App
+import theme.ThemeManager
+import theme.ThemeDefinition
+import theme.Color
+import theme.Tone
+import theme.Appearance
+import ui.Scroll
+import ui.ForEach
+import ui.ValueKey
+import ui.WidgetRole
+
+class ProxyWindow implements Widget {
+  ThemeManager theme = ThemeManager(definition: ThemeDefinition(primary: Color(hex: "#2563EB")))
+  List<ProxyEntry> entries = []
+  Integer nextId = 1
+  String status = ""
+  StartupToggle startup = StartupToggle()
+
+  Void init() {
+    try {
+      var saved = fromJson<ProxySettings>(value: readText(path: Path(value: applicationDirectory().value + "/proxy.json"), encoding: TextEncoding.Utf8, maximumBytes: 1048576))
+      saved.validate()
+      for definition : saved.proxies {
+        this.entries.add(ProxyEntry(definition: definition, save: this.save, remove: this.remove))
+        if definition.id >= this.nextId { this.nextId = definition.id + 1 }
+      }
+    } catch FileException error {
+      if error.reason != FileFailure.NotFound { this.status = "读取配置失败：" + error.message }
+    } catch Exception error { this.status = "配置无效：" + error.message }
+    if this.entries.size() == 0 { this.add() }
+  }
+
+  Void add() {
+    this.entries.add(ProxyEntry(definition: ProxyDefinition(id: this.nextId, name: "代理 " + this.nextId.toString(), controlUrl: "", localBaseUrl: "http://127.0.0.1:54345", enabled: false), save: this.save, remove: this.remove))
+    this.nextId = this.nextId + 1
+  }
+
+  Void save() {
+    var settings = ProxySettings(proxies: [for (entry : this.entries) entry.definition()])
+    settings.validate()
+    var writer = openWrite(path: Path(value: applicationDirectory().value + "/proxy.json"), mode: FileWriteMode.Replace)
+    use<Unit>(resource: writer, body: () {
+      writeAll(writer: writer, content: encodeText(text: toJson(value: settings), encoding: TextEncoding.Utf8))
+      return Unit.Value
+    })
+    this.status = ""
+  }
+
+  Void remove(ProxyEntry entry) {
+    if entry.task != null { return }
+    var previous = this.entries
+    this.entries = [for (item : this.entries) if (item != entry) item]
+    try { this.save() } catch Exception error { this.entries = previous this.status = error.message }
+  }
+
+  Widget build() {
+    return App(theme: this.theme, content: Layout(
+      top: Flex(items: [
+        FlexItem(content: Flex(items: [
+          FlexItem(content: Button(text: "全部连接", action: () { for entry : this.entries { entry.connect() } })),
+          FlexItem(content: Button(text: "全部断开", action: () { for entry : this.entries { entry.disconnect() } }, tone: Tone.Neutral, appearance: Appearance.Outlined))
+        ]), grow: 1.0),
+        FlexItem(content: this.startup)
+      ]),
+      center: Scroll(child: Column {
+        ForEach<ProxyEntry>(items: this.entries, identity: (ProxyEntry entry) { ValueKey<Integer>(value: entry.id) }, child: (ProxyEntry entry) { entry })
+      }),
+      bottom: Column {
+        if this.status != "" { Text(text: this.status, role: WidgetRole.Destructive) }
+        Flex(items: [
+          FlexItem(content: Button(text: "新增", action: this.add, tone: Tone.Neutral, appearance: Appearance.Outlined)),
+          FlexItem(content: Button(text: "保存", action: () { try { this.save() } catch Exception error { this.status = error.message } }))
+        ], alignment: Alignment.End)
+      }
+    ))
+  }
+
+  Void dispose() { this.theme.close() }
+}
+
+Void main() { runApp(DesktopApp(title: "Local API WebSocket Proxy", home: ProxyWindow())) }

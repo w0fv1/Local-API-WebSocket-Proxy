@@ -1,0 +1,39 @@
+package localapi.proxy
+
+import std.serialization.Serializable
+import std.core.Exception
+
+@Serializable()
+value ProxyDefinition {
+  Integer id
+  String name
+  String controlUrl
+  String localBaseUrl
+  Boolean enabled
+
+  Configuration configuration() {
+    String local = this.localBaseUrl.trim()
+    if local.endsWith(suffix: "/") { local = local.sliceCodePoints(start: 0, end: local.codePoints().size() - 1) }
+    var result = Configuration(controlUrl: this.controlUrl.trim(), localBaseUrl: local)
+    result.validate()
+    return result
+  }
+}
+
+@Serializable()
+value ProxySettings {
+  List<ProxyDefinition> proxies
+
+  Void validate() {
+    for first : this.proxies {
+      Integer matches = 0
+      for second : this.proxies {
+        if first.id == second.id { matches = matches + 1 }
+        if first.id != second.id && first.controlUrl.trim() != "" && first.controlUrl.trim() == second.controlUrl.trim() {
+          throw Exception(message: "每个代理必须使用独立的 Control URL")
+        }
+      }
+      if matches != 1 { throw Exception(message: "代理 ID 重复") }
+    }
+  }
+}

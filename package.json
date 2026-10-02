@@ -1,0 +1,20 @@
+{
+  "name": "local-api-websocket-proxy",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.9.0"
+  },
+  "scripts": {
+    "test": "node --test --test-concurrency=1 test/*.test.mjs",
+    "gateway": "node gateway/cli.mjs"
+  },
+  "dependencies": {
+    "ws": "8.21.3"
+  },
+  "license": "MPL-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/w0fv1/Local-API-WebSocket-Proxy.git"
+  }
+}

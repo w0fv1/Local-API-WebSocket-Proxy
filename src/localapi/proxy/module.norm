@@ -1,0 +1,3 @@
+Module module() {
+  return module(name: "localapi.proxy", version: 1, exports: ["application", "protocol", "history", "settings"])
+}
