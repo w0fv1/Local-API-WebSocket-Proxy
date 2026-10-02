@@ -9,18 +9,18 @@ import std.core.Exception
 import std.context.currentContext
 import ui.Widget
 import ui.ViewScope
-import ui.Text
-import ui.component.Input
+import ui.kit.Text
+import ui.kit.Input
 import ui.Binding
-import ui.Column
-import ui.component.Flex
-import ui.component.FlexItem
-import ui.component.Alignment
-import ui.component.Card
-import ui.component.Tag
+import ui.kit.Column
+import ui.kit.Flex
+import ui.kit.FlexItem
+import ui.kit.Alignment
+import ui.kit.Card
+import ui.kit.Tag
 import theme.Tone
 import theme.Appearance
-import ui.component.Button
+import ui.kit.Button
 import ui.WidgetRole
 
 class ProxyEntry implements Widget {

@@ -9,9 +9,9 @@ import std.io.decodeText
 import std.json.fromJson
 import std.process.runProcess
 import ui.Binding
-import ui.Column
-import ui.Text
-import ui.component.Switch
+import ui.kit.Column
+import ui.kit.Text
+import ui.kit.Switch
 import ui.ViewScope
 import ui.Widget
 import ui.WidgetRole

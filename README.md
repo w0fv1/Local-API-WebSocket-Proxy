@@ -1,6 +1,6 @@
 # Local API WebSocket Proxy
 
-Windows 桌面客户端通过 Nfirco RELAY 通道转发本机 HTTP API 和 WebSocket。桌面界面使用正式 [ui.component](https://github.com/normlanguage/ui-component) 组件库与 [Norm UI](https://github.com/normlanguage/ui) 的 JavaFX 实现，网络请求由 Norm 进程执行。
+Windows 桌面客户端通过 Nfirco RELAY 通道转发本机 HTTP API 和 WebSocket。桌面界面使用正式 [ui.kit](https://github.com/normlanguage/ui-component) 组件库与 [Norm UI](https://github.com/normlanguage/ui) 的 [ui.fx](https://github.com/normlanguage/ui-fx) JavaFX 实现，网络请求由 Norm 进程执行。
 
 ```text
 远程调用方 → 远程 Gateway → Nfirco RELAY ← 本机桌面客户端 → 本地 HTTP API / CDP
@@ -47,15 +47,23 @@ WebSocket 始终连接 Local Base URL 的主机，允许指定动态端口。当
 
 桌面安装包发布在 [GitHub Releases](https://github.com/w0fv1/Local-API-WebSocket-Proxy/releases)，标签为 `v<版本号>`，附件包含 ZIP 与 SHA-256。版本说明见 [RELEASE.md](RELEASE.md)。使用 GitHub CLI 发布：`gh release create v<版本号> .tmp/local-api-proxy-releases/local-api-websocket-proxy-<版本号>-windows-x64.zip .tmp/local-api-proxy-releases/local-api-websocket-proxy-<版本号>-windows-x64.sha256 --notes-file RELEASE.md`。
 
-需要 Norm 0.26.2 或更新工具链及其 Windows Native Image 构建依赖。通过 `-NormExecutable` 指定已安装的 Norm 命令。正式 GitHub 包及版本见 [桌面模块清单](src/localapi/desktop/module.norm)，依赖由 Norm 解析。
+依赖以 [桌面模块清单](src/localapi/desktop/module.norm) 为准。当前 `ui.kit` 及其所有权契约需要匹配的开发版 Norm，现有 Release 尚不能满足全部依赖。使用 JDK 25 从 [Norm 源码](https://github.com/normlanguage/Norm) 构建 `:compiler:installRuntimeDist`，按 [ui.kit 构建入口](https://github.com/normlanguage/ui-component#readme) 准备已合并的依赖源码和主题 Java 制品，运行其 `scripts/prepare.ps1`。依赖 checkout 不在同级目录时，传入该脚本对应的 Root 参数。
+
+构建与检查复用 ui.kit 的隔离开发目录，不复制库实现到本项目。`NORM_EXECUTABLE` 指向匹配的编译器，`-NormExecutable` 指向 kit 的包装脚本；两者职责不同。
 
 ```powershell
-.\build.ps1 -NormExecutable (Get-Command norm).Source
-.\build.ps1 -NormExecutable (Get-Command norm).Source -Target Agent
+$kitRoot = '你的 ui-component checkout 绝对路径'
+$env:NORM_EXECUTABLE = '匹配版 Norm checkout/build/compiler/norm-runtime/bin/norm.bat'
+$kitNorm = Join-Path $kitRoot 'scripts/norm.ps1'
+& (Join-Path $kitRoot 'scripts/prepare.ps1')
+.\build.ps1 -NormExecutable $kitNorm
+.\build.ps1 -NormExecutable $kitNorm -Target Agent
 npm ci
 npm test
 .\test\startup.ps1
 ```
+
+全部依赖正式发布后，可直接将已安装的匹配版 Norm 命令传给 `-NormExecutable`，由模块声明解析 GitHub 包。
 
 桌面产物是 Native Image 窗口模式 EXE，不携带 JVM，运行电脑无需安装 Norm 或 Java。`-Target Agent` 构建原生命令行代理，启动时读取工作目录的 `proxy.json`，供自动化验证和无界面使用。构建日志写入仓库 `.tmp/local-api-proxy-build`；桌面启动日志由启动器写入 `%LOCALAPPDATA%/Programs/Norm/logs/local-api-websocket-proxy/`。
 
