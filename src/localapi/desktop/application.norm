@@ -17,29 +17,28 @@ import std.io.writeAll
 import std.io.use
 import std.json.fromJson
 import std.json.toJson
-import ui.DesktopApp
-import ui.runApp
+import ui.fx.DesktopApp
 import ui.Widget
-import ui.Text
-import ui.component.Button
-import ui.Column
-import ui.component.Layout
-import ui.component.Flex
-import ui.component.FlexItem
-import ui.component.Alignment
-import ui.component.App
+import ui.kit.Text
+import ui.kit.Button
+import ui.kit.Column
+import ui.kit.Layout
+import ui.kit.Flex
+import ui.kit.FlexItem
+import ui.kit.Alignment
+import ui.kit.App
 import theme.ThemeManager
 import theme.ThemeDefinition
 import theme.Color
 import theme.Tone
 import theme.Appearance
-import ui.Scroll
+import ui.kit.Scroll
 import ui.ForEach
 import ui.ValueKey
 import ui.WidgetRole
 
 class ProxyWindow implements Widget {
-  ThemeManager theme = ThemeManager(definition: ThemeDefinition(primary: Color(hex: "#2563EB")))
+  ThemeManager theme
   List<ProxyEntry> entries = []
   Integer nextId = 1
   String status = ""
@@ -103,8 +102,10 @@ class ProxyWindow implements Widget {
       }
     ))
   }
-
-  Void dispose() { this.theme.close() }
 }
 
-Void main() { runApp(DesktopApp(title: "Local API WebSocket Proxy", home: ProxyWindow())) }
+Void main() {
+  var theme = ThemeManager(definition: ThemeDefinition(primary: Color(hex: "#2563EB")))
+  try { DesktopApp(title: "Local API WebSocket Proxy", home: ProxyWindow(theme: theme)).run() }
+  finally { theme.close() }
+}
