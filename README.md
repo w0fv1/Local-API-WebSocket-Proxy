@@ -45,7 +45,7 @@ WebSocket 始终连接 Local Base URL 的主机，允许指定动态端口。当
 
 发布包使用说明见 [安装与运行](DISTRIBUTION.md)。构建并验证后，运行 `./package-release.ps1 -Version <版本号>` 生成 Windows ZIP 与 SHA-256，输出到仓库 `.tmp/local-api-proxy-releases`。
 
-桌面安装包发布在 [GitHub Releases](https://github.com/w0fv1/Local-API-WebSocket-Proxy/releases)，标签为 `v<版本号>`，附件包含 ZIP 与 SHA-256。版本说明见 [RELEASE.md](RELEASE.md)。使用 GitHub CLI 发布：`gh release create v<版本号> .tmp/local-api-proxy-releases/local-api-websocket-proxy-<版本号>-windows-x64.zip .tmp/local-api-proxy-releases/local-api-websocket-proxy-<版本号>-windows-x64.sha256 --notes-file RELEASE.md`。
+桌面安装包发布在 [GitHub Releases](https://github.com/w0fv1/Local-API-WebSocket-Proxy/releases) 与 [火合网](https://next.firco.cn/release/local-api-websocket-proxy)。版本 tag 发布入口见 [工作流](.github/workflows/release.yml)，发布说明见 [RELEASE.md](RELEASE.md)。
 
 依赖以 [桌面模块清单](src/localapi/desktop/module.norm) 为准。当前 `ui.kit` 及其所有权契约需要匹配的开发版 Norm，现有 Release 尚不能满足全部依赖。使用 JDK 25 从 [Norm 源码](https://github.com/normlanguage/Norm) 构建 `:compiler:installRuntimeDist`，按 [ui.kit 构建入口](https://github.com/normlanguage/ui-component#readme) 准备已合并的依赖源码和主题 Java 制品，运行其 `scripts/prepare.ps1`。依赖 checkout 不在同级目录时，传入该脚本对应的 Root 参数。
 
@@ -94,4 +94,3 @@ npm test
 ## 自动发布
 
 版本入口为 [package.json](package.json)，构建依赖固定在 [build-dependencies.json](build-dependencies.json)。[发布工作流](.github/workflows/release.yml) 在版本 tag 上构建并双端发布；PR 仅构建与验证。
-

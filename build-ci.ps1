@@ -22,8 +22,9 @@ $env:PATH = (Split-Path -Parent $env:NORM_EXECUTABLE) + [IO.Path]::PathSeparator
 if ($LASTEXITCODE -ne 0) { throw 'Theme build failed' }
 & (Join-Path $DependencyRoot 'ui-component/scripts/prepare.ps1')
 if ($LASTEXITCODE -ne 0) { throw 'UI dependencies build failed' }
+$nativeTemp = Join-Path $PSScriptRoot '.tmp/native'
+New-Item -ItemType Directory -Force $nativeTemp | Out-Null
+$env:JAVA_TOOL_OPTIONS = "$env:JAVA_TOOL_OPTIONS -Djava.io.tmpdir=`"$nativeTemp`""
 $kitNorm = Join-Path $DependencyRoot 'ui-component/scripts/norm.ps1'
 & (Join-Path $PSScriptRoot 'build.ps1') -NormExecutable $kitNorm -Target Agent
 & (Join-Path $PSScriptRoot 'build.ps1') -NormExecutable $kitNorm -Target Desktop
-
-
