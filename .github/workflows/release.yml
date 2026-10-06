@@ -1,0 +1,102 @@
+name: Application release
+on:
+  push:
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: application-release-${{ github.repository }}-${{ github.event_name == 'pull_request' && github.ref || 'publish' }}
+  cancel-in-progress: false
+jobs:
+  build:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: windows-2022
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/checkout@v4
+        with:
+          repository: LaiQiInfoTech/nfirco
+          ref: 7ea84346331f04743d34c03fbbfdb652d0eed935
+          token: ${{ secrets.CLIENT_RELEASE_SOURCE_TOKEN }}
+          path: .release-tools
+          sparse-checkout: |
+            .github/actions
+            script/release
+            app/_sub/web_shell
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Preserve reproducible library JDK
+        shell: pwsh
+        run: '"THEME_JAVA_HOME=$env:JAVA_HOME" >> $env:GITHUB_ENV'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: oracle
+          java-version: '25'
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: ilammy/msvc-dev-cmd@v1
+      - name: Build desktop and agent
+        shell: pwsh
+        run: ./build-ci.ps1
+      - name: Verify agent transport
+        shell: pwsh
+        run: |
+          npm ci
+          if ($LASTEXITCODE -ne 0) { throw 'Dependency installation failed' }
+          node --test test/agent.test.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'Agent verification failed' }
+      - name: Package application
+        shell: pwsh
+        run: |
+          $tag = if ($env:GITHUB_REF_TYPE -eq 'tag') { $env:GITHUB_REF_NAME } else { '' }
+          ./prepare-release.ps1 -Tag $tag
+      - uses: actions/upload-artifact@v4
+        with:
+          name: application-package
+          path: output/
+          if-no-files-found: error
+          retention-days: 30
+  publish:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: build
+    runs-on: windows-2022
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/checkout@v4
+        with:
+          repository: LaiQiInfoTech/nfirco
+          ref: 7a4aecc0c0b4854d9a8b687ccdc2cc9451676d16
+          token: ${{ secrets.CLIENT_RELEASE_SOURCE_TOKEN }}
+          path: .release-tools
+          sparse-checkout: |
+            .github/actions/publish-release
+            script/release
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: application-package
+          path: output
+      - uses: ./.release-tools/.github/actions/publish-release
+        with:
+          manifest: output/release.json
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NFIRCO_RELEASE_USERNAME: ${{ secrets.NFIRCO_RELEASE_USERNAME }}
+          NFIRCO_RELEASE_PASSWORD: ${{ secrets.NFIRCO_RELEASE_PASSWORD }}

@@ -4,3 +4,6 @@
 /proxy.json
 /.tmp/
 /startup.json
+
+output/
+.release-tools/
