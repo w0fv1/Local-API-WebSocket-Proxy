@@ -90,3 +90,8 @@ npm test
 ## 许可证
 
 [MPL-2.0](LICENSE)
+
+## 自动发布
+
+版本入口为 [package.json](package.json)，构建依赖固定在 [build-dependencies.json](build-dependencies.json)。[发布工作流](.github/workflows/release.yml) 在版本 tag 上构建并双端发布；PR 仅构建与验证。
+

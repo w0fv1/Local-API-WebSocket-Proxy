@@ -82,7 +82,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: LaiQiInfoTech/nfirco
-          ref: 7ea84346331f04743d34c03fbbfdb652d0eed935
+          ref: d6197f2293aa0f4a259aea96a8a65203ccdaaafd
           token: ${{ secrets.CLIENT_RELEASE_SOURCE_TOKEN }}
           path: .release-tools
           sparse-checkout: |
@@ -100,4 +100,3 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           NFIRCO_RELEASE_USERNAME: ${{ secrets.NFIRCO_RELEASE_USERNAME }}
           NFIRCO_RELEASE_PASSWORD: ${{ secrets.NFIRCO_RELEASE_PASSWORD }}
-
