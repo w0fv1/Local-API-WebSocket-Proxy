@@ -17,10 +17,11 @@ $normRoot = Join-Path $DependencyRoot 'Norm'
 & (Join-Path $normRoot 'gradlew.bat') -p $normRoot :compiler:installRuntimeDist --no-daemon
 if ($LASTEXITCODE -ne 0) { throw 'Norm compiler build failed' }
 $env:NORM_EXECUTABLE = Join-Path $normRoot 'build/compiler/norm-runtime/bin/norm.bat'
-& (Join-Path $DependencyRoot 'theme/scripts/build.ps1') -UpdatePin
+& (Join-Path $DependencyRoot 'theme/scripts/build.ps1') -JavaHome $env:THEME_JAVA_HOME
 if ($LASTEXITCODE -ne 0) { throw 'Theme build failed' }
 & (Join-Path $DependencyRoot 'ui-component/scripts/prepare.ps1')
 if ($LASTEXITCODE -ne 0) { throw 'UI dependencies build failed' }
 $kitNorm = Join-Path $DependencyRoot 'ui-component/scripts/norm.ps1'
 & (Join-Path $PSScriptRoot 'build.ps1') -NormExecutable $kitNorm -Target Agent
 & (Join-Path $PSScriptRoot 'build.ps1') -NormExecutable $kitNorm -Target Desktop
+
