@@ -82,7 +82,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: LaiQiInfoTech/nfirco
-          ref: d6197f2293aa0f4a259aea96a8a65203ccdaaafd
+          ref: 7a4aecc0c0b4854d9a8b687ccdc2cc9451676d16
           token: ${{ secrets.CLIENT_RELEASE_SOURCE_TOKEN }}
           path: .release-tools
           sparse-checkout: |
