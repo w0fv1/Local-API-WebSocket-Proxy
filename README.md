@@ -1,6 +1,6 @@
 # Local API WebSocket Proxy
 
-Windows 桌面客户端通过 Nfirco RELAY 通道转发本机 HTTP API 和 WebSocket。桌面界面使用正式 [ui.kit](https://github.com/normlanguage/ui-component) 组件库与 [Norm UI](https://github.com/normlanguage/ui) 的 [ui.fx](https://github.com/normlanguage/ui-fx) JavaFX 实现，网络请求由 Norm 进程执行。
+Windows 桌面客户端通过 Nfirco RELAY 通道转发本机 HTTP API 和 WebSocket。桌面界面使用 [ui.desktop.kit](https://github.com/normlanguage/ui.desktop.kit) 组件库与 [Norm UI](https://github.com/normlanguage/ui) 的 [ui.desktop](https://github.com/normlanguage/ui.desktop) JavaFX 实现，网络请求由 Norm 进程执行。
 
 ```text
 远程调用方 → 远程 Gateway → Nfirco RELAY ← 本机桌面客户端 → 本地 HTTP API / CDP
@@ -47,29 +47,33 @@ WebSocket 始终连接 Local Base URL 的主机，允许指定动态端口。当
 
 桌面安装包发布在 [GitHub Releases](https://github.com/w0fv1/Local-API-WebSocket-Proxy/releases) 与 [火合网](https://next.firco.cn/release/local-api-websocket-proxy)。版本 tag 发布入口见 [工作流](.github/workflows/release.yml)，发布说明见 [RELEASE.md](RELEASE.md)。
 
-依赖以 [桌面模块清单](src/localapi/desktop/module.norm) 为准。当前 `ui.kit` 及其所有权契约需要匹配的开发版 Norm，现有 Release 尚不能满足全部依赖。使用 JDK 25 从 [Norm 源码](https://github.com/normlanguage/Norm) 构建 `:compiler:installRuntimeDist`，按 [ui.kit 构建入口](https://github.com/normlanguage/ui-component#readme) 准备已合并的依赖源码和主题 Java 制品，运行其 `scripts/prepare.ps1`。依赖 checkout 不在同级目录时，传入该脚本对应的 Root 参数。
+模块依赖以 [桌面模块清单](src/localapi/desktop/module.norm) 为准，可复现的源码版本统一固定在 [build-dependencies.json](build-dependencies.json)。[构建入口](build-ci.ps1) 获取锁定源码、构建匹配编译器，并依次准备主题、通用 UI、桌面后端和桌面组件库。应用的布局来自 `ui`，控件来自 `ui.desktop.kit`，主题来自 `ui.theme`；生命周期约定见[应用开发文档](https://github.com/normlanguage/ui.desktop.kit/blob/main/docs/applications.md)。
 
-构建与检查复用 ui.kit 的隔离开发目录，不复制库实现到本项目。`NORM_EXECUTABLE` 指向匹配的编译器，`-NormExecutable` 指向 kit 的包装脚本；两者职责不同。
+构建与检查使用本项目 `.norm-home` 隔离缓存，不复制库实现。`NORM_EXECUTABLE` 指向匹配编译器，[scripts/norm.ps1](scripts/norm.ps1) 统一设置应用缓存位置。首次准备完整源码依赖并构建桌面与命令行代理：
 
 ```powershell
-$kitRoot = '你的 ui-component checkout 绝对路径'
-$env:NORM_EXECUTABLE = '匹配版 Norm checkout/build/compiler/norm-runtime/bin/norm.bat'
-$kitNorm = Join-Path $kitRoot 'scripts/norm.ps1'
-& (Join-Path $kitRoot 'scripts/prepare.ps1')
-.\build.ps1 -NormExecutable $kitNorm
-.\build.ps1 -NormExecutable $kitNorm -Target Agent
+$env:JAVA_HOME = '你的 JDK 25 安装目录'
+$env:THEME_JAVA_HOME = '你的 JDK 21 安装目录'
+.\build-ci.ps1
+$env:NORM_EXECUTABLE = Join-Path $PWD '.tmp/dependencies/Norm/build/compiler/norm-runtime/bin/norm.bat'
+.\scripts\norm.ps1 check src/localapi/desktop
+.\scripts\norm.ps1 test src/localapi/desktop --filter localapi.desktop.test.components
 npm ci
-npm test
-.\test\startup.ps1
+node --test test/agent.test.mjs
+.\test\desktop-smoke.ps1
 ```
 
-全部依赖正式发布后，可直接将已安装的匹配版 Norm 命令传给 `-NormExecutable`，由模块声明解析 GitHub 包。
+仅准备源码依赖使用 `./build-ci.ps1 -PrepareOnly`。依赖准备完成后，单独重建使用 `./build.ps1 -NormExecutable scripts/norm.ps1`；命令行代理加 `-Target Agent`。全部依赖正式发布后，也可将已安装的匹配版 Norm 命令传给 `-NormExecutable`，由模块声明解析 GitHub 包。
 
 桌面产物是 Native Image 窗口模式 EXE，不携带 JVM，运行电脑无需安装 Norm 或 Java。`-Target Agent` 构建原生命令行代理，启动时读取工作目录的 `proxy.json`，供自动化验证和无界面使用。构建日志写入仓库 `.tmp/local-api-proxy-build`；桌面启动日志由启动器写入 `%LOCALAPPDATA%/Programs/Norm/logs/local-api-websocket-proxy/`。
 
 [端到端测试](test/agent.test.mjs) 启动真实 HTTP、WebSocket 和模拟 RELAY 服务，通过构建好的代理 EXE 验证字节保真、分块、并发、取消及重连；模拟中继不等同于生产环境验收。
 
 [桌面测试](test/desktop.test.mjs) 需要 Windows 交互会话，验证多代理隔离、心跳超时、批量操作和配置恢复。[界面测试](test/appearance.test.mjs) 验证窗口缩放后的布局、状态和真实自启开关。[启动测试](test/startup.ps1) 注册临时计划任务，验证自启选择、手动启动与异常退出恢复，并清理临时任务。
+
+[组件验收](src/localapi/desktop/tests/test/components/case.norm) 在真实 JavaFX 窗口中验证条目身份、原生输入绑定及连接校验，不操作开机启动、不连接生产中继。`npm test` 包含完整桌面与自启验收，需要专门的 Windows 测试环境；日常依赖升级使用上面的定向命令。
+
+[原生启动验收](test/desktop-smoke.ps1) 在独立目录运行实际桌面 EXE，验证启动、新增条目及正常退出，不保存代理配置、不修改自启任务。
 
 ## 代码入口
 

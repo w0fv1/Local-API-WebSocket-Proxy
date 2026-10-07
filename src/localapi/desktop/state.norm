@@ -1,6 +1,6 @@
 package localapi.desktop
 
-import theme.Tone
+import ui.theme.Tone
 
 enum ProxyState { Disconnected, Connecting, Waiting, Connected, Reconnecting, Disconnecting, Failed }
 

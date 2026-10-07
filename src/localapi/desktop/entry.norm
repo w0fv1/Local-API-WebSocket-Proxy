@@ -9,19 +9,20 @@ import std.core.Exception
 import std.context.currentContext
 import ui.Widget
 import ui.ViewScope
-import ui.kit.Text
-import ui.kit.Input
+import ui.Text
+import ui.desktop.kit.Input
 import ui.Binding
-import ui.kit.Column
-import ui.kit.Flex
-import ui.kit.FlexItem
-import ui.kit.Alignment
-import ui.kit.Card
-import ui.kit.Tag
-import theme.Tone
-import theme.Appearance
-import ui.kit.Button
+import ui.Column
+import ui.Flex
+import ui.FlexItem
+import ui.MainAlignment
+import ui.desktop.kit.Card
+import ui.desktop.kit.Tag
+import ui.theme.Tone
+import ui.theme.Appearance
+import ui.desktop.kit.Button
 import ui.WidgetRole
+import ui.NodeKey
 
 class ProxyEntry implements Widget {
   Integer id
@@ -108,22 +109,22 @@ class ProxyEntry implements Widget {
 
   Widget build() {
     return Card(
-      header: Flex(items: [
-        FlexItem(content: Input(placeholder: "代理名称", value: Binding<String>(read: () { this.name }, write: (String value) { this.name = value }), submit: () { this.save() }, enabled: this.task == null), grow: 1.0),
+      header: Flex(gap: 12.0, items: [
+        FlexItem(content: Input(key: NodeKey.Named("proxy-name-" + this.id.toString()), placeholder: "代理名称", value: Binding<String>(read: () { this.name }, write: (String value) { this.name = value }), submit: () { this.save() }, enabled: this.task == null), grow: 1.0),
         FlexItem(content: Tag(text: this.status.label, tone: this.status.tone))
       ]),
-      content: Column {
+      content: Column(gap: 8.0) {
         Text(text: "Control URL")
         Input(placeholder: "wss://…/ws/proxy/…?role=client", value: Binding<String>(read: () { this.controlUrl }, write: (String value) { this.controlUrl = value }), submit: this.connect, enabled: this.task == null)
         Text(text: "Local Base URL")
         Input(placeholder: "http://127.0.0.1:54345", value: Binding<String>(read: () { this.localBaseUrl }, write: (String value) { this.localBaseUrl = value }), submit: this.connect, enabled: this.task == null)
         if this.status.detail != "" { Text(text: this.status.detail, role: WidgetRole.Destructive) }
       },
-      bottom: Flex(items: [
-        FlexItem(content: Button(text: "连接", action: this.connect, enabled: this.task == null)),
+      bottom: Flex(gap: 8.0, items: [
+        FlexItem(content: Button(key: NodeKey.Named("proxy-connect-" + this.id.toString()), text: "连接", action: this.connect, enabled: this.task == null)),
         FlexItem(content: Button(text: "断开", action: this.disconnect, enabled: !this.stopping && (this.task != null || this.enabled), tone: Tone.Neutral, appearance: Appearance.Outlined)),
         FlexItem(content: Button(text: "删除", action: () { this.remove(this) }, enabled: this.task == null, tone: Tone.Danger, appearance: Appearance.Plain))
-      ], alignment: Alignment.End),
+      ], main: MainAlignment.End),
       tone: this.status.tone, appearance: Appearance.Soft
     )
   }

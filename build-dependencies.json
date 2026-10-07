@@ -1,42 +1,27 @@
 [
   {
-    "directory": "Norm",
     "repository": "normlanguage/Norm",
-    "revision": "ffdbc057b12745fb9e2b90d48c980fb737001b3c"
+    "directory": "Norm",
+    "revision": "00589dd5f1a457ed756f0dc163772e1cb42ffa1c"
   },
   {
-    "directory": "ui-component",
-    "repository": "normlanguage/ui-component",
-    "revision": "4dcf650d7e7147180979b0ab2f777ad00d86ff47"
-  },
-  {
-    "directory": "ui",
     "repository": "normlanguage/ui",
-    "revision": "b3dab957a5f343858a0a3d4487231d8e4630340f"
+    "directory": "ui",
+    "revision": "077f9d893f45f52c63712fb69176731f3af0e1a6"
   },
   {
-    "directory": "ui-fx",
-    "repository": "normlanguage/ui-fx",
-    "revision": "fca7fa63d45ff601197305b19bfb89770972e4e6"
+    "repository": "normlanguage/ui.desktop",
+    "directory": "ui.desktop",
+    "revision": "b75802a519de66405a8e88b7ff042543278d40fd"
   },
   {
-    "directory": "fx-graphics",
-    "repository": "normlanguage/fx-graphics",
-    "revision": "353f168efe8144a3748c8250a97a7619ef18f2cd"
+    "repository": "normlanguage/ui.desktop.kit",
+    "directory": "ui.desktop.kit",
+    "revision": "c4a6eb7216cf388c7fe1a18d8fe093e9ff0b3e90"
   },
   {
-    "directory": "fx-controls",
-    "repository": "normlanguage/fx-controls",
-    "revision": "f548c637a05a20ab704500278316dcd85e8663e6"
-  },
-  {
-    "directory": "theme",
-    "repository": "normlanguage/theme",
-    "revision": "834a6a2ec920677660aa210cbb1614ef4e8a80d5"
-  },
-  {
-    "directory": "jdk-base",
-    "repository": "normlanguage/jdk-base",
-    "revision": "e3ea78bf533dc7dd35570081ba16abf0135c0b82"
+    "repository": "normlanguage/ui.theme",
+    "directory": "ui.theme",
+    "revision": "41b5da319322f4989e1c58abd1b30d62975c1f81"
   }
 ]

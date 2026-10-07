@@ -7,3 +7,4 @@
 
 output/
 .release-tools/
+/.norm-home/
