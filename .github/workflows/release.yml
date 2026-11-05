@@ -31,6 +31,13 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-java@v4
         with:
+          distribution: temurin
+          java-version: '21'
+      - name: Preserve theme toolchain
+        shell: pwsh
+        run: Add-Content -LiteralPath $env:GITHUB_ENV -Value "THEME_JAVA_HOME=$env:JAVA_HOME"
+      - uses: actions/setup-java@v4
+        with:
           distribution: oracle
           java-version: '25'
       - uses: actions/setup-dotnet@v4
