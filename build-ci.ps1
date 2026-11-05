@@ -25,7 +25,9 @@ if ($LASTEXITCODE -ne 0) { throw 'Desktop adapter build failed' }
 if ($LASTEXITCODE -ne 0) { throw 'Desktop native metadata verification failed' }
 & $env:NORM_EXECUTABLE package (Join-Path $desktopRoot 'ui/desktop') --output (Join-Path $HOME '.norm/cache/packages')
 if ($LASTEXITCODE -ne 0) { throw 'Desktop package build failed' }
-$nativeTemp = Join-Path $PSScriptRoot '.tmp/native'
+# Native Image relativizes its report artifacts against the staging directory.
+# Norm writes reports under user.home, so staging must use that same Windows drive.
+$nativeTemp = Join-Path $HOME '.norm/cache/native-tmp'
 New-Item -ItemType Directory -Force $nativeTemp | Out-Null
 $env:JAVA_TOOL_OPTIONS = "$env:JAVA_TOOL_OPTIONS -Djava.io.tmpdir=`"$nativeTemp`""
 & (Join-Path $PSScriptRoot 'build.ps1') -NormExecutable $env:NORM_EXECUTABLE -Target Agent
