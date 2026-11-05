@@ -1,6 +1,8 @@
 # Local API WebSocket Proxy
 
-Windows 桌面客户端通过 Nfirco RELAY 通道转发本机 HTTP API 和 WebSocket。桌面界面使用正式 [ui.desktop.kit](https://github.com/normlanguage/ui.desktop.kit) 组件库与 [Norm UI](https://github.com/normlanguage/ui) 的 [ui.desktop](https://github.com/normlanguage/ui.desktop) JavaFX 实现，网络请求由 Norm 进程执行。
+Built with [Norm](https://github.com/normlanguage/Norm).
+
+Windows 桌面客户端通过 Nfirco RELAY 通道转发本机 HTTP API 和 WebSocket。桌面界面使用 [ui.desktop.kit](https://github.com/normlanguage/ui.desktop.kit) 组件库与 [Norm UI](https://github.com/normlanguage/ui) 的 [ui.desktop](https://github.com/normlanguage/ui.desktop) JavaFX 实现，网络请求由 Norm 进程执行。
 
 ```text
 远程调用方 → 远程 Gateway → Nfirco RELAY ← 本机桌面客户端 → 本地 HTTP API / CDP
@@ -47,25 +49,33 @@ WebSocket 始终连接 Local Base URL 的主机，允许指定动态端口。当
 
 桌面安装包发布在 [GitHub Releases](https://github.com/w0fv1/Local-API-WebSocket-Proxy/releases) 与 [火合网](https://next.firco.cn/release/local-api-websocket-proxy)。版本 tag 发布入口见 [工作流](.github/workflows/release.yml)，发布说明见 [RELEASE.md](RELEASE.md)。
 
-依赖由 [桌面模块清单](src/localapi/desktop/module.norm) 和 [构建锁定文件](build-dependencies.json) 管理。应用使用已发布的 `ui 11`、`ui.desktop.kit 9`、`ui.theme 5`；编译器与桌面适配层锁定到包含原生程序修复的提交。构建不再依赖旧的 `ui.fx`、`fx.graphics`、`fx.controls` 或 `jdk.base` 开发目录。
+模块依赖以 [桌面模块清单](src/localapi/desktop/module.norm) 为准，可复现的源码版本统一固定在 [build-dependencies.json](build-dependencies.json)。[构建入口](build-ci.ps1) 获取锁定源码、构建匹配编译器，并依次准备主题、通用 UI、桌面后端和桌面组件库。应用的布局来自 `ui`，控件来自 `ui.desktop.kit`，主题来自 `ui.theme`；生命周期约定见[应用开发文档](https://github.com/normlanguage/ui.desktop.kit/blob/main/docs/applications.md)。
 
-安装 JDK 25、.NET 10 SDK、Node.js 24.9+ 和 Visual Studio C++ 构建工具后，在开发者 PowerShell 中执行：
+构建与检查使用本项目 `.norm-home` 隔离缓存，不复制库实现。`NORM_EXECUTABLE` 指向匹配编译器，[scripts/norm.ps1](scripts/norm.ps1) 统一设置应用缓存位置。首次准备完整源码依赖并构建桌面与命令行代理：
 
 ```powershell
-./build-ci.ps1
+$env:JAVA_HOME = '你的 JDK 25 安装目录'
+$env:THEME_JAVA_HOME = '你的 JDK 21 安装目录'
+.\build-ci.ps1
+$env:NORM_EXECUTABLE = Join-Path $PWD '.tmp/dependencies/Norm/build/compiler/norm-runtime/bin/norm.bat'
+.\scripts\norm.ps1 check src/localapi/desktop
+.\scripts\norm.ps1 test src/localapi/desktop --filter localapi.desktop.test.components
 npm ci
-node --test test/agent.test.mjs
+node --test test/agent.test.mjs test/desktop-transport.test.mjs
+.\test\desktop-smoke.ps1
 ```
 
-`build-ci.ps1` 检查 Native Image 的 Windows 文本辅助功能回调、构建固定版本的编译器和桌面适配层，再生成桌面程序与无界面代理。使用现有编译器调试网络核心时，可执行 `./build.ps1 -NormExecutable <norm.bat> -Target Agent`。
-
-协议回归覆盖请求头、二进制与大文件分块、并发、取消、断线恢复，以及异常 JSON 请求后进程继续运行。无界面代理读取工作目录内的 `proxy.json`，桌面版读取 EXE 所在目录的配置；不要混用两种配置结构。
+仅准备源码依赖使用 `./build-ci.ps1 -PrepareOnly`。依赖准备完成后，单独重建使用 `./build.ps1 -NormExecutable scripts/norm.ps1`；命令行代理加 `-Target Agent`。全部依赖正式发布后，也可将已安装的匹配版 Norm 命令传给 `-NormExecutable`，由模块声明解析 GitHub 包。
 
 桌面产物是 Native Image 窗口模式 EXE，不携带 JVM，运行电脑无需安装 Norm 或 Java。`-Target Agent` 构建原生命令行代理，启动时读取工作目录的 `proxy.json`，供自动化验证和无界面使用。构建日志写入仓库 `.tmp/local-api-proxy-build`；桌面启动日志由启动器写入 `%LOCALAPPDATA%/Programs/Norm/logs/local-api-websocket-proxy/`。
 
 [端到端测试](test/agent.test.mjs) 启动真实 HTTP、WebSocket 和模拟 RELAY 服务，通过构建好的代理 EXE 验证字节保真、分块、并发、取消及重连；模拟中继不等同于生产环境验收。
 
 [桌面测试](test/desktop.test.mjs) 需要 Windows 交互会话，验证多代理隔离、心跳超时、批量操作和配置恢复。[界面测试](test/appearance.test.mjs) 验证窗口缩放后的布局、状态和真实自启开关。[启动测试](test/startup.ps1) 注册临时计划任务，验证自启选择、手动启动与异常退出恢复，并清理临时任务。
+
+[组件验收](src/localapi/desktop/tests/test/components/case.norm) 在真实 JavaFX 窗口中验证条目身份、原生输入绑定及连接校验，不操作开机启动、不连接生产中继。`npm test` 包含完整桌面与自启验收，需要专门的 Windows 测试环境；日常依赖升级使用上面的定向命令。
+
+[原生启动验收](test/desktop-smoke.ps1) 在独立目录运行实际桌面 EXE，验证启动、新增条目及正常退出，不保存代理配置、不修改自启任务。
 
 ## 代码入口
 
@@ -90,3 +100,5 @@ node --test test/agent.test.mjs
 ## 自动发布
 
 版本入口为 [package.json](package.json)，构建依赖固定在 [build-dependencies.json](build-dependencies.json)。[发布工作流](.github/workflows/release.yml) 在版本 tag 上构建并双端发布；PR 仅构建与验证。
+
+网络回归包含 HTTP 请求头、二进制分块、CDP、断线恢复，以及异常 JSON 后继续工作。Native Image 构建检查 Windows 文本辅助功能 JNI 元数据；编译器和桌面适配层固定到包含相应修复的提交。

@@ -5,8 +5,23 @@
     "revision": "0cab7c2bfb2f7f7e77187b5d5fe89d5928191ee1"
   },
   {
+    "repository": "normlanguage/ui",
+    "directory": "ui",
+    "revision": "1b3535d71396f45f747c3ad8ae0ffeca0da18caa"
+  },
+  {
     "repository": "normlanguage/ui.desktop",
-    "directory": "ui-desktop",
-    "revision": "0b6dff61799d8fb9ce820d3dba751bf8f33eddd4"
+    "directory": "ui.desktop",
+    "revision": "2fe1079e58b64be60f3c46cf1bb9bc3be364f257"
+  },
+  {
+    "repository": "normlanguage/ui.desktop.kit",
+    "directory": "ui.desktop.kit",
+    "revision": "cb2ec841cd7e0af20343d415650af57732b411af"
+  },
+  {
+    "repository": "normlanguage/ui.theme",
+    "directory": "ui.theme",
+    "revision": "c1389d2697c9432c57cb3f08c0788ac9ae0b94cf"
   }
 ]

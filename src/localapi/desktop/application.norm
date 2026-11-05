@@ -36,6 +36,9 @@ import ui.Scroll
 import ui.ForEach
 import ui.ValueKey
 import ui.WidgetRole
+import ui.Box
+import ui.Insets
+import ui.CrossAlignment
 
 class ProxyWindow implements Widget {
   ThemeManager theme
@@ -82,25 +85,25 @@ class ProxyWindow implements Widget {
   }
 
   Widget build() {
-    return App(theme: this.theme, content: Dock(
-      top: Flex(items: [
-        FlexItem(content: Flex(items: [
+    return App(theme: this.theme, content: Box(padding: Insets(top: 20.0, right: 20.0, bottom: 20.0, left: 20.0), content: Dock(
+      top: Flex(gap: 12.0, cross: CrossAlignment.Center, items: [
+        FlexItem(content: Flex(gap: 8.0, items: [
           FlexItem(content: Button(text: "全部连接", action: () { for entry : this.entries { entry.connect() } })),
           FlexItem(content: Button(text: "全部断开", action: () { for entry : this.entries { entry.disconnect() } }, tone: Tone.Neutral, appearance: Appearance.Outlined))
         ]), grow: 1.0),
         FlexItem(content: this.startup)
       ]),
-      center: Scroll(child: Column {
+      center: Scroll(child: Column(gap: 12.0, cross: CrossAlignment.Stretch) {
         ForEach<ProxyEntry>(items: this.entries, identity: (ProxyEntry entry) { ValueKey<Integer>(value: entry.id) }, child: (ProxyEntry entry) { entry })
       }),
-      bottom: Column {
+      bottom: Column(gap: 8.0) {
         if this.status != "" { Text(text: this.status, role: WidgetRole.Destructive) }
-        Flex(items: [
+        Flex(gap: 8.0, items: [
           FlexItem(content: Button(text: "新增", action: this.add, tone: Tone.Neutral, appearance: Appearance.Outlined)),
           FlexItem(content: Button(text: "保存", action: () { try { this.save() } catch Exception error { this.status = error.message } }))
         ], main: MainAlignment.End)
       }
-    ))
+    )))
   }
 }
 

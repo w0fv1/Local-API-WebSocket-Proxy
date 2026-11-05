@@ -1,0 +1,63 @@
+package localapi.desktop.test.components
+
+import localapi.desktop.ProxyEntry
+import localapi.desktop.ProxyState
+import localapi.proxy.ProxyDefinition
+import std.testing.Test
+import std.core.Exception
+import ui.Column
+import ui.ForEach
+import ui.ValueKey
+import ui.Renderer
+import ui.desktop.FxApplication
+import ui.desktop.JavaFxBackend
+import ui.desktop.JavaFxScheduler
+import ui.desktop.fxHandle
+import ui.desktop.withFxRuntime
+import ui.desktop.native.TextField
+import ui.desktop.native.Button
+import ui.desktop.kit.App
+import ui.theme.ThemeManager
+import ui.theme.ThemeDefinition
+import ui.theme.Color
+
+class Completion { Boolean done = false }
+
+@Test
+Void nativeBindingsKeepIndependentProxyIdentity() {
+  withFxRuntime(() {
+    var theme = ThemeManager(ThemeDefinition(primary: Color(hex: "#2563EB")))
+    var application = FxApplication("Proxy component acceptance")
+    var renderer = Renderer(backend: JavaFxBackend(application), scheduler: JavaFxScheduler(application))
+    var one = ProxyEntry(definition: ProxyDefinition(id: 1, name: "Same name", controlUrl: "", localBaseUrl: "http://127.0.0.1:1", enabled: false), save: () { throw Exception(message: "Invalid configuration must not save") }, remove: (ProxyEntry entry) {})
+    var two = ProxyEntry(definition: ProxyDefinition(id: 2, name: "Same name", controlUrl: "", localBaseUrl: "http://127.0.0.1:2", enabled: false), save: () {}, remove: (ProxyEntry entry) {})
+    var completed = Completion()
+    application.run(build: () {
+      renderer.render(App(theme: theme, content: Column {
+        ForEach<ProxyEntry>(items: [one, two], identity: (ProxyEntry entry) { ValueKey<Integer>(value: entry.id) }, child: (ProxyEntry entry) { entry })
+      }))
+      application.root(fxHandle(renderer.node()))
+      application.later(() {
+        switch application.scene().lookup("#proxy-name-1") {
+          case TextField input { input.setText("Changed") }
+          case _ { throw Exception(message: "Missing public Input node") }
+        }
+        application.later(() {
+          require(condition: one.name == "Changed" && two.name == "Same name", message: "Native edit updates only the matching proxy")
+          switch application.scene().lookup("#proxy-connect-1") {
+            case Button button { button.fire() }
+            case _ { throw Exception(message: "Missing public Button node") }
+          }
+          application.later(() {
+            try {
+              require(condition: one.status.state == ProxyState.Failed && one.task == null && !one.enabled, message: "Invalid connection stays stopped")
+              require(condition: two.status.state == ProxyState.Disconnected, message: "Connection validation is isolated per proxy")
+              completed.done = true
+            } finally { application.close() }
+          })
+        })
+      })
+    }, dispose: () { renderer.close() theme.close() })
+    require(condition: completed.done, message: "Native component acceptance completed")
+  })
+}
