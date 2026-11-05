@@ -1,8 +1,10 @@
 ---
-version: 0.2.2
+version: 0.3.0
 ---
 
 # Local API WebSocket Proxy
+
+0.3.0 更新：升级 UI 依赖与原生运行时，修复 Windows 辅助功能 JNI 回调缺失导致的桌面崩溃，以及异常 JSON 导致转发进程退出的问题；补齐 HTTP / CDP 传输与桌面组件回归测试。构建使用隔离缓存，并校验原生元数据。
 
 Windows x64 桌面客户端，可通过 Nfirco 中继远程访问多个本地 HTTP API 和 WebSocket，无需安装 Norm 或 Java。
 
