@@ -9,18 +9,18 @@ import std.core.Exception
 import std.context.currentContext
 import ui.Widget
 import ui.ViewScope
-import ui.kit.Text
-import ui.kit.Input
+import ui.Text
+import ui.desktop.kit.Input
 import ui.Binding
-import ui.kit.Column
-import ui.kit.Flex
-import ui.kit.FlexItem
-import ui.kit.Alignment
-import ui.kit.Card
-import ui.kit.Tag
-import theme.Tone
-import theme.Appearance
-import ui.kit.Button
+import ui.Column
+import ui.Flex
+import ui.FlexItem
+import ui.MainAlignment
+import ui.desktop.kit.Card
+import ui.desktop.kit.Tag
+import ui.theme.Tone
+import ui.theme.Appearance
+import ui.desktop.kit.Button
 import ui.WidgetRole
 
 class ProxyEntry implements Widget {
@@ -123,7 +123,7 @@ class ProxyEntry implements Widget {
         FlexItem(content: Button(text: "连接", action: this.connect, enabled: this.task == null)),
         FlexItem(content: Button(text: "断开", action: this.disconnect, enabled: !this.stopping && (this.task != null || this.enabled), tone: Tone.Neutral, appearance: Appearance.Outlined)),
         FlexItem(content: Button(text: "删除", action: () { this.remove(this) }, enabled: this.task == null, tone: Tone.Danger, appearance: Appearance.Plain))
-      ], alignment: Alignment.End),
+      ], main: MainAlignment.End),
       tone: this.status.tone, appearance: Appearance.Soft
     )
   }
