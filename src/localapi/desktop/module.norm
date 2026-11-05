@@ -1,9 +1,9 @@
 Module module() {
-  return module(name: "localapi.desktop", version: 1, dependencies: [
+  module(name: "localapi.desktop", version: 1, dependencies: [
     dependency(repository: "github", name: "localapi.proxy", version: 1),
-    dependency(repository: "github", name: "ui", version: 9),
-    dependency(repository: "github", name: "ui.desktop", version: 7),
-    dependency(repository: "github", name: "ui.desktop.kit", version: 7),
-    dependency(repository: "github", name: "ui.theme", version: 3)
+    dependency(repository: "github", name: "ui", version: 11),
+    dependency(repository: "github", name: "ui.desktop", version: 9),
+    dependency(repository: "github", name: "ui.desktop.kit", version: 9),
+    dependency(repository: "github", name: "ui.theme", version: 5)
   ])
 }

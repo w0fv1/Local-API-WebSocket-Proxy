@@ -61,7 +61,7 @@ $env:NORM_EXECUTABLE = Join-Path $PWD '.tmp/dependencies/Norm/build/compiler/nor
 .\scripts\norm.ps1 check src/localapi/desktop
 .\scripts\norm.ps1 test src/localapi/desktop --filter localapi.desktop.test.components
 npm ci
-node --test test/agent.test.mjs
+node --test test/agent.test.mjs test/desktop-transport.test.mjs
 .\test\desktop-smoke.ps1
 ```
 
@@ -100,3 +100,5 @@ node --test test/agent.test.mjs
 ## 自动发布
 
 版本入口为 [package.json](package.json)，构建依赖固定在 [build-dependencies.json](build-dependencies.json)。[发布工作流](.github/workflows/release.yml) 在版本 tag 上构建并双端发布；PR 仅构建与验证。
+
+网络回归包含 HTTP 请求头、二进制分块、CDP、断线恢复，以及异常 JSON 后继续工作。Native Image 构建检查 Windows 文本辅助功能 JNI 元数据；编译器和桌面适配层固定到包含相应修复的提交。

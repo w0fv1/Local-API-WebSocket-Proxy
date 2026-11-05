@@ -2,26 +2,26 @@
   {
     "repository": "normlanguage/Norm",
     "directory": "Norm",
-    "revision": "00589dd5f1a457ed756f0dc163772e1cb42ffa1c"
+    "revision": "0cab7c2bfb2f7f7e77187b5d5fe89d5928191ee1"
   },
   {
     "repository": "normlanguage/ui",
     "directory": "ui",
-    "revision": "077f9d893f45f52c63712fb69176731f3af0e1a6"
+    "revision": "1b3535d71396f45f747c3ad8ae0ffeca0da18caa"
   },
   {
     "repository": "normlanguage/ui.desktop",
     "directory": "ui.desktop",
-    "revision": "b75802a519de66405a8e88b7ff042543278d40fd"
+    "revision": "2fe1079e58b64be60f3c46cf1bb9bc3be364f257"
   },
   {
     "repository": "normlanguage/ui.desktop.kit",
     "directory": "ui.desktop.kit",
-    "revision": "c4a6eb7216cf388c7fe1a18d8fe093e9ff0b3e90"
+    "revision": "cb2ec841cd7e0af20343d415650af57732b411af"
   },
   {
     "repository": "normlanguage/ui.theme",
     "directory": "ui.theme",
-    "revision": "41b5da319322f4989e1c58abd1b30d62975c1f81"
+    "revision": "c1389d2697c9432c57cb3f08c0788ac9ae0b94cf"
   }
 ]

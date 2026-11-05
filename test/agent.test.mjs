@@ -26,9 +26,10 @@ test('agent forwards HTTP and CDP through a relay and recovers without replay', 
   t.after(() => gateway.close());
   await gateway.ready();
   const body = Buffer.from('中文\u0000binary');
-  const response = await gateway.request({ method: 'POST', path: '/echo', headers: [], body });
+  const response = await gateway.request({ method: 'POST', path: '/echo', headers: [{ name: 'x-test-key', value: 'relay-header' }], body });
   assert.equal(response.status, 201, output);
   assert.deepEqual(response.body, body);
+  assert.equal(resources.requests[0].headers['x-test-key'], 'relay-header');
   assert.equal(response.headers.filter(h => h.name === 'set-cookie').length, 2);
   const large = await gateway.request({ method: 'GET', path: '/large', headers: [], body: Buffer.alloc(0) });
   assert.deepEqual(large.body, Buffer.alloc(1500000, 255));
@@ -62,6 +63,12 @@ test('agent forwards HTTP and CDP through a relay and recovers without replay', 
   await recovered;
   await rejected;
   assert.equal((await gateway.request({ method: 'GET', path: '/after-reconnect' })).status, 201);
+  // A malformed peer must not terminate the native process while constructing JsonException.
+  const afterInvalidJson = once(gateway, 'ready');
+  gateway.send({ type: 'http.request', id: 'invalid-header', method: 'POST', path: '/', headers: [[]], data: [], end: true });
+  await afterInvalidJson;
+  assert.equal(agent.exitCode, null, output);
+  assert.equal((await gateway.request({ method: 'GET', path: '/after-invalid-frame' })).status, 201);
   assert.equal(await readFile(historyPath, 'utf8'), saved);
   assert.ok(!output.includes('通讯记录读取失败'));
 });

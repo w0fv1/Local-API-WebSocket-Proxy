@@ -33,6 +33,8 @@ try {
         if ($library -eq 'ui.desktop') {
             & (Join-Path $libraryRoot 'scripts/prepare.ps1') -NormHome $normHome
             if ($LASTEXITCODE -ne 0) { throw "$library preparation failed" }
+            & (Join-Path $libraryRoot 'gradlew.bat') -p $libraryRoot verifyNativeImageMetadata --console=plain
+            if ($LASTEXITCODE -ne 0) { throw 'Desktop native metadata verification failed' }
         }
         if ($library -eq 'ui.desktop.kit') {
             & (Join-Path $libraryRoot 'scripts/prepare.ps1') -NormHome $normHome -UiRoot (Join-Path $DependencyRoot 'ui')
@@ -52,7 +54,8 @@ try {
     Copy-Item -Path (Join-Path $PSScriptRoot 'build/norm-repository/*') -Destination $packages -Recurse -Force
 } finally { $env:JAVA_TOOL_OPTIONS = $previousOptions }
 if ($PrepareOnly) { return }
-$nativeTemp = Join-Path $PSScriptRoot '.tmp/native'
+# The wrapper uses .norm-home for reports; staging must be on the same drive.
+$nativeTemp = Join-Path $normHome '.norm/cache/native-tmp'
 New-Item -ItemType Directory -Force $nativeTemp | Out-Null
 $env:JAVA_TOOL_OPTIONS = "$env:JAVA_TOOL_OPTIONS -Djava.io.tmpdir=`"$nativeTemp`""
 $applicationNorm = Join-Path $PSScriptRoot 'scripts/norm.ps1'
