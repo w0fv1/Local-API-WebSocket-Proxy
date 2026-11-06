@@ -1,5 +1,8 @@
 package localapi.desktop.test.components
 
+import localapi.desktop.ProxyDetails
+import ui.State
+import ui.ReactiveRuntime
 import localapi.desktop.ProxyEntry
 import localapi.desktop.ProxyState
 import localapi.proxy.ProxyDefinition
@@ -29,12 +32,16 @@ Void nativeBindingsKeepIndependentProxyIdentity() {
     var theme = ThemeManager(ThemeDefinition(primary: Color(hex: "#2563EB")))
     var application = FxApplication("Proxy component acceptance")
     var renderer = Renderer(backend: JavaFxBackend(application), scheduler: JavaFxScheduler(application))
-    var one = ProxyEntry(definition: ProxyDefinition(id: 1, name: "Same name", controlUrl: "", localBaseUrl: "http://127.0.0.1:1", enabled: false), save: () { throw Exception(message: "Invalid configuration must not save") }, remove: (ProxyEntry entry) {})
-    var two = ProxyEntry(definition: ProxyDefinition(id: 2, name: "Same name", controlUrl: "", localBaseUrl: "http://127.0.0.1:2", enabled: false), save: () {}, remove: (ProxyEntry entry) {})
+    var selectionRuntime = ReactiveRuntime()
+    var selection = State<Integer>(runtime: selectionRuntime, initial: 1)
+    var one = ProxyEntry(definition: ProxyDefinition(id: 1, name: "Same name", controlUrl: "", localBaseUrl: "http://127.0.0.1:1", enabled: false), selection: selection, save: () { throw Exception(message: "Invalid configuration must not save") }, changed: () {}, remove: (ProxyEntry entry) {})
+    var two = ProxyEntry(definition: ProxyDefinition(id: 2, name: "Same name", controlUrl: "", localBaseUrl: "http://127.0.0.1:2", enabled: false), selection: selection, save: () {}, changed: () {}, remove: (ProxyEntry entry) {})
     var completed = Completion()
     application.run(build: () {
       renderer.render(App(theme: theme, content: Column {
         ForEach<ProxyEntry>(items: [one, two], identity: (ProxyEntry entry) { ValueKey<Integer>(value: entry.id) }, child: (ProxyEntry entry) { entry })
+        ProxyDetails(entry: one)
+        ProxyDetails(entry: two)
       }))
       application.root(fxHandle(renderer.node()))
       application.later(() {
@@ -57,7 +64,7 @@ Void nativeBindingsKeepIndependentProxyIdentity() {
           })
         })
       })
-    }, dispose: () { renderer.close() theme.close() })
+    }, dispose: () { renderer.close() selectionRuntime.close() theme.close() })
     require(condition: completed.done, message: "Native component acceptance completed")
   })
 }

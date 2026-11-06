@@ -22,7 +22,12 @@ $modules = @{
 foreach ($entry in $modules.GetEnumerator()) {
   $destination = Join-Path $workspace $entry.Value
   New-Item -ItemType Directory -Force $destination | Out-Null
-  Copy-Item -Path (Join-Path $projectRoot "src/localapi/$($entry.Key)/*.norm") -Destination $destination -Force
+  $sourceDirectory = Join-Path $projectRoot "src/localapi/$($entry.Key)"
+  Copy-Item -Path (Join-Path $sourceDirectory '*.norm') -Destination $destination -Force
+  $resources = Join-Path $sourceDirectory 'resources'
+  if (Test-Path -LiteralPath $resources) {
+    Copy-Item -LiteralPath $resources -Destination $destination -Recurse -Force
+  }
 }
 $module = if ($Target -eq 'Agent') { 'dependencies/localapi/proxy' } else { 'localapi/desktop' }
 $source = (Join-Path $workspace "$module/application.norm").Replace('\', '/')

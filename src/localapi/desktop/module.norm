@@ -5,7 +5,7 @@ Module module() {
     dependency(repository: "github", name: "micronaut.web", version: 11),
     dependency(repository: "github", name: "ui", version: 11),
     dependency(repository: "github", name: "ui.desktop", version: 9),
-    dependency(repository: "github", name: "ui.desktop.kit", version: 9),
+    dependency(repository: "github", name: "ui.desktop.kit", version: 10),
     dependency(repository: "github", name: "ui.theme", version: 5)
   ], binding: jarBinding(target: mavenJar(group: "io.micronaut", artifact: "micronaut-context", version: "5.1.13",
       resolution: sha256("8f19d657612a3bb7655fd86621d0f394b42a1e4534fa0a5f8182321b7f711cb8")),

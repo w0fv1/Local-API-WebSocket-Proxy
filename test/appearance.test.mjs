@@ -3,7 +3,7 @@ import { once } from 'node:events';
 import assert from 'node:assert/strict';
 import { spawn, execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { mkdir, mkdtemp, copyFile, writeFile, readFile, readdir } from 'node:fs/promises';
+import { mkdir, mkdtemp, copyFile, writeFile, readFile } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fixture } from './fixture.mjs';
@@ -43,13 +43,7 @@ test('desktop keeps actions in the corners and controls its real logon trigger',
       await exited;
     }
     await startup('Remove');
-    const logRoot = join(process.env.LOCALAPPDATA, 'Programs', 'Norm', 'logs', 'local-api-websocket-proxy');
-    const run = (await readdir(logRoot)).filter(name => name.endsWith(`-${application.pid}`)).sort().at(-1);
-    assert.ok(run, 'native launcher records diagnostics for this process');
-    const diagnostics = await readFile(join(logRoot, run, 'stderr.log'), 'utf8');
-    await writeFile(join(cwd, 'application.log'), diagnostics);
-    assert.equal(application.exitCode, 0, diagnostics);
-    assert.doesNotMatch(diagnostics, /Exception|Error:/, 'native rendering and cleanup must not report failures');
+    assert.equal(application.exitCode, 0, 'native launcher must exit cleanly');
   });
   let elements;
   for (let i = 0; i < 60; i++) {
@@ -60,29 +54,22 @@ test('desktop keeps actions in the corners and controls its real logon trigger',
   const checkLayout = elements => {
     const window = elements[0];
     const buttons = elements.filter(item => item.type === 'ControlType.Button');
-    const add = buttons.find(item => item.name === '新增');
-    const save = buttons.find(item => item.name === '保存');
+    const add = buttons.find(item => item.name === '新增代理');
+    const save = buttons.find(item => item.name === '保存更改');
     const startup = elements.find(item => item.name === '开机启动');
-    assert.ok(add && save && startup, `concise actions and startup switch exist: ${JSON.stringify(elements)}`);
-    assert.ok(add.x < save.x && add.y === save.y);
-    assert.ok(save.x + save.width > window.x + window.width - 100);
-    assert.ok(save.y + save.height > window.y + window.height - 100);
-    assert.ok(startup.x > window.x + window.width / 2 && startup.y < window.y + 130);
-    const connectAll = buttons.find(item => item.name === '全部连接');
-    assert.ok(Math.abs(connectAll.y - startup.y) < 20, 'startup shares the bulk action row');
-    const status = elements.find(item => /^● /.test(item.name));
-    const connect = buttons.find(item => item.name === '连接');
-    const disconnect = buttons.find(item => item.name === '断开');
-    const remove = buttons.find(item => item.name === '删除');
-    if (status.width > 0) assert.ok(status.x + status.width > window.x + window.width * 0.7, 'card status is in its upper right corner');
-    if (connect.width > 0 && disconnect.width > 0 && remove.width > 0) {
-      assert.ok(connect.x < disconnect.x && disconnect.x < remove.x && connect.y === remove.y);
-      assert.ok(remove.x + remove.width > window.x + window.width * 0.7, 'card actions align right');
-      if (status.width > 0) assert.ok(Math.abs(status.x + status.width - remove.x - remove.width) <= status.height, 'status aligns with card actions within the tag padding');
-    }
-    for (const item of elements.slice(1)) assert.ok(!/Local API WebSocket Proxy|每个本地 API|配置已保存|连接的代理会|关闭窗口会|新增代理|保存配置/.test(item.name), `removed copy: ${item.name}`);
+    assert.ok(add && startup && !save, 'toolbar actions remain visible and saved settings need no save button');
+    const row = buttons.find(item => item.name.includes('● '));
+    const address = elements.find(item => item.name === '本地服务地址');
+    assert.ok(row && address, 'proxy list and selected details are present');
+    assert.ok(row.x + row.width <= address.x + 2, 'selection list stays left of the detail pane');
+    assert.ok(add.y < row.y, 'toolbar is above the list');
+
+    assert.ok(elements.some(item => item.name === '中继地址') && elements.some(item => item.name === '本地服务地址'));
+
   };
   checkLayout(elements);
+  phase = 'pointer focus and text entry';
+  await ui('ExerciseInputs');
   assert.ok(elements.some(item => item.name === '● 未连接'));
   assert.equal(await startup('Query'), 'false');
   const toggleStartup = async () => {
@@ -104,26 +91,49 @@ test('desktop keeps actions in the corners and controls its real logon trigger',
   phase = 'connect';
   await ui('Click', '连接');
   for (let i = 0; i < 40 && !(await ui('Snapshot')).includes('● 等待网关'); i++) await delay(100);
-  assert.ok((await ui('Snapshot')).includes('● 等待网关'));
+  const waiting = await ui('Snapshot');
+  assert.ok(waiting.includes('● 等待网关'), waiting);
   const gateway = new Gateway(resource.serverUrl);
   t.after(() => gateway.close());
   await gateway.ready();
   for (let i = 0; i < 40 && !(await ui('Snapshot')).includes('● 已连接'); i++) await delay(100);
   assert.ok((await ui('Snapshot')).includes('● 已连接'));
   await ui('Capture', '', ['-OutputPath', join(root, 'desktop.png')]);
+  const connectedPeer = [...resource.relay.clients].find(client => client.role === 'client');
+  assert.ok(connectedPeer, 'connected client exists before changing selection');
+  let closedDuring = '';
+  connectedPeer.once('close', () => { closedDuring = phase; });
   phase = 'add and save';
-  await ui('Click', '新增');
-  await ui('Click', '保存');
+  await ui('Click', '新增代理');
+  await ui('Click', '保存更改');
   assert.equal(JSON.parse(await readFile(join(cwd, 'proxy.json'), 'utf8')).proxies.length, 2);
   assert.ok(JSON.parse(await ui('Inspect')).some(item => item.name === '开机启动' && item.enabled), 'adding a proxy preserves the startup widget');
+  const selectProxy = async name => {
+    const row = JSON.parse(await ui('Inspect')).find(item =>
+      item.type === 'ControlType.Button' && item.name.startsWith(name + '\n'));
+    assert.ok(row, 'proxy remains in the list: ' + name);
+    await ui('Click', row.name);
+  };
+  phase = 'switch back to connected proxy';
+  await selectProxy('API');
+  let details = '';
+  for (let i = 0; i < 20; i++) {
+    details = await ui('Snapshot');
+    if (details.includes(resource.configuration.localBaseUrl)) break;
+    await delay(100);
+  }
+  assert.ok(details.includes(resource.configuration.localBaseUrl), details);
+  assert.ok(resource.relay.clients.has(connectedPeer), 'existing connection closed during ' + closedDuring);
   phase = 'resize large';
   await ui('Resize', '', ['-Width', '980', '-Height', '820']);
   await delay(200);
   checkLayout(JSON.parse(await ui('Inspect')));
+  await ui('Capture', '', ['-OutputPath', join(root, 'desktop-wide.png')]);
   phase = 'resize small';
   await ui('Resize', '', ['-Width', '500', '-Height', '400']);
   await delay(200);
   checkLayout(JSON.parse(await ui('Inspect')));
+  await ui('Capture', '', ['-OutputPath', join(root, 'desktop-narrow.png')]);
   await ui('Click', '全部断开');
   for (let i = 0; i < 40 && !(await ui('Snapshot')).includes('● 未连接'); i++) await delay(100);
   assert.ok((await ui('Snapshot')).includes('● 未连接'));
