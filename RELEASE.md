@@ -20,6 +20,6 @@ Windows x64 桌面客户端，可通过 Nfirco 中继远程访问多个本地 HT
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 ```
 
-从开始菜单打开 **Local API WebSocket Proxy**，点击顶部“新增代理”，填写代理名称、Control URL（中继的 `role=client` 地址）和 Local Base URL。点击“保存更改”写入配置，在卡片右侧连接或断开代理，左侧可删除已断开的代理。最小化可继续运行；正常关闭窗口则退出。
+从开始菜单打开 **Local API WebSocket Proxy**，点击顶部“新增代理”，填写代理名称、Control URL（中继的 `role=client` 地址）和 Local Base URL。点击“保存更改”写入配置，在左栏选择代理，右栏可查看地址、连接或断开，也可删除已断开的代理。最小化可继续运行；正常关闭窗口则退出。
 
 发布包包含原生 EXE、安装与守护脚本、远程 Gateway 和完整使用说明，不预置代理地址。远程 Gateway 需要 Node.js 24.9 或更新版本。

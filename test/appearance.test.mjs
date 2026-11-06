@@ -58,12 +58,12 @@ test('desktop keeps actions in the corners and controls its real logon trigger',
     const save = buttons.find(item => item.name === '保存更改');
     const startup = elements.find(item => item.name === '开机启动');
     assert.ok(add && startup && !save, 'toolbar actions remain visible and saved settings need no save button');
-    const status = elements.find(item => /^● /.test(item.name));
-    const action = buttons.find(item => item.name === '连接' || item.name === '断开');
-    const remove = buttons.find(item => item.name === '删除');
-    assert.ok(add.y < status.y && status.y < action.y);
-    assert.ok(remove.x < action.x && Math.abs(remove.y - action.y) < 12);
-    assert.ok(action.x + action.width > window.x + window.width * 0.7, 'actions use the available card width');
+    const row = buttons.find(item => item.name.includes('● '));
+    const address = elements.find(item => item.name === '本地服务地址');
+    assert.ok(row && address, 'proxy list and selected details are present');
+    assert.ok(row.x + row.width <= address.x + 2, 'selection list stays left of the detail pane');
+    assert.ok(add.y < row.y, 'toolbar is above the list');
+
     assert.ok(elements.some(item => item.name === '中继地址') && elements.some(item => item.name === '本地服务地址'));
 
   };
@@ -99,11 +99,31 @@ test('desktop keeps actions in the corners and controls its real logon trigger',
   for (let i = 0; i < 40 && !(await ui('Snapshot')).includes('● 已连接'); i++) await delay(100);
   assert.ok((await ui('Snapshot')).includes('● 已连接'));
   await ui('Capture', '', ['-OutputPath', join(root, 'desktop.png')]);
+  const connectedPeer = [...resource.relay.clients].find(client => client.role === 'client');
+  assert.ok(connectedPeer, 'connected client exists before changing selection');
+  let closedDuring = '';
+  connectedPeer.once('close', () => { closedDuring = phase; });
   phase = 'add and save';
   await ui('Click', '新增代理');
   await ui('Click', '保存更改');
   assert.equal(JSON.parse(await readFile(join(cwd, 'proxy.json'), 'utf8')).proxies.length, 2);
   assert.ok(JSON.parse(await ui('Inspect')).some(item => item.name === '开机启动' && item.enabled), 'adding a proxy preserves the startup widget');
+  const selectProxy = async name => {
+    const row = JSON.parse(await ui('Inspect')).find(item =>
+      item.type === 'ControlType.Button' && item.name.startsWith(name + '\n'));
+    assert.ok(row, 'proxy remains in the list: ' + name);
+    await ui('Click', row.name);
+  };
+  phase = 'switch back to connected proxy';
+  await selectProxy('API');
+  let details = '';
+  for (let i = 0; i < 20; i++) {
+    details = await ui('Snapshot');
+    if (details.includes(resource.configuration.localBaseUrl)) break;
+    await delay(100);
+  }
+  assert.ok(details.includes(resource.configuration.localBaseUrl), details);
+  assert.ok(resource.relay.clients.has(connectedPeer), 'existing connection closed during ' + closedDuring);
   phase = 'resize large';
   await ui('Resize', '', ['-Width', '980', '-Height', '820']);
   await delay(200);

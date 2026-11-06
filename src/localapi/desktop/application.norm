@@ -25,7 +25,9 @@ import std.json.fromJson
 import std.json.toJson
 import ui.desktop.DesktopApp
 import ui.Widget
+import ui.State
 import ui.Text
+import ui.desktop.kit.Splitter
 import ui.desktop.kit.Button
 import ui.Column
 import ui.Dock
@@ -40,6 +42,7 @@ import ui.theme.Tone
 import ui.theme.Appearance
 import ui.Scroll
 import ui.ForEach
+import ui.NodeKey
 import ui.ValueKey
 import ui.WidgetRole
 import ui.SizeConstraints
@@ -51,6 +54,8 @@ import ui.CrossAlignment
 class ProxyWindow implements Widget {
   ThemeManager theme
   List<ProxyEntry> entries = []
+  ViewScope? owner = null
+  State<Integer>? selection = null
   Integer nextId = 1
   Boolean dirty = false
   String status = ""
@@ -60,17 +65,20 @@ class ProxyWindow implements Widget {
   Task<Unit>? managementLink = null
 
   Void init() {
+    this.owner = currentContext<ViewScope>()!!
+    this.selection = this.owner!!.createState<Integer>(0)
     try {
       var saved = fromJson<ProxySettings>(value: readText(path: Path(value: applicationDirectory().value + "/proxy.json"), encoding: TextEncoding.Utf8, maximumBytes: 1048576))
       saved.validate()
       for definition : saved.proxies {
-        this.entries.add(ProxyEntry(definition: definition, save: this.save, changed: this.markChanged, remove: this.remove))
+        this.entries.add(this.entry(definition))
         if definition.id >= this.nextId { this.nextId = definition.id + 1 }
       }
     } catch FileException error {
       if error.reason != FileFailure.NotFound { this.status = "读取配置失败：" + error.message }
     } catch Exception error { this.status = "配置无效：" + error.message }
-    if this.entries.size() == 0 { this.add() }
+    for entry : this.entries { entry.attach(this.owner!!) }
+    if this.entries.size() == 0 { this.add() } else { this.selection!!.value = this.entries[0].id }
     try {
       var settings = fromJson<ManagementSettings>(value: readText(path: Path(value: applicationDirectory().value + "/management.json"), encoding: TextEncoding.Utf8, maximumBytes: 16384))
       var scope = currentContext<ViewScope>()!!
@@ -88,7 +96,12 @@ class ProxyWindow implements Widget {
     } catch Exception error { this.management?.close() this.management = null this.status = "管理 API 启动失败：" + error.message }
   }
 
+  ProxyEntry entry(ProxyDefinition definition) {
+    return ProxyEntry(definition: definition, selection: this.selection!!, save: this.save, changed: this.markChanged, remove: this.remove)
+  }
+
   Void dispose() {
+    for entry : this.entries { entry.shutdown() }
     this.managementLink?.cancel()
     this.management?.close()
   }
@@ -97,7 +110,11 @@ class ProxyWindow implements Widget {
 
   Void add() {
     this.markChanged()
-    this.entries.add(ProxyEntry(definition: ProxyDefinition(id: this.nextId, name: "代理 " + this.nextId.toString(), controlUrl: "", localBaseUrl: "http://127.0.0.1:54345", enabled: false), save: this.save, changed: this.markChanged, remove: this.remove))
+    var entry = this.entry(ProxyDefinition(id: this.nextId, name: "代理 " + this.nextId.toString(),
+      controlUrl: "", localBaseUrl: "http://127.0.0.1:54345", enabled: false))
+    entry.attach(this.owner!!)
+    this.entries.add(entry)
+    this.selection!!.value = this.nextId
     this.nextId = this.nextId + 1
   }
 
@@ -117,26 +134,41 @@ class ProxyWindow implements Widget {
     if entry.task != null { return }
     var previous = this.entries
     this.entries = [for (item : this.entries) if (item != entry) item]
-    try { this.save() } catch Exception error { this.entries = previous this.status = error.message }
+    try {
+      this.save()
+      if this.selection!!.value == entry.id {
+        this.selection!!.value = if this.entries.size() > 0 { this.entries[0].id } else { 0 }
+      }
+    } catch Exception error { this.entries = previous this.status = error.message }
   }
 
   Widget build() {
-    return App(theme: this.theme, content: Box(
+    return App(theme: this.theme, stylesheet: "/localapi/desktop/workspace.css", content: Box(
       size: SizeConstraints(width: Dimension.Fill, height: Dimension.Fill),
       padding: Insets(top: 16.0, right: 20.0, bottom: 16.0, left: 20.0), content: Dock(
         top: Box(size: SizeConstraints(width: Dimension.Fill), padding: Insets(bottom: 14.0),
           content: Flex(wrap: true, gap: 10.0, cross: CrossAlignment.Center, items: [
             FlexItem(content: Flex(gap: 12.0, cross: CrossAlignment.Center, items: [
               FlexItem(content: Text(text: "代理连接", role: WidgetRole.Title)),
-              FlexItem(content: Button(text: "新增代理", action: this.add))
+              FlexItem(content: Button(text: "新增代理", action: this.add)),
+              FlexItem(content: this.startup)
             ]), grow: 1.0),
-            FlexItem(content: Button(text: "全部连接", action: () { for entry : this.entries { entry.connect() } }, tone: Tone.Neutral, appearance: Appearance.Outlined)),
-            FlexItem(content: Button(text: "全部断开", action: () { for entry : this.entries { entry.disconnect() } }, tone: Tone.Neutral, appearance: Appearance.Outlined)),
-            FlexItem(content: this.startup)
+            FlexItem(content: Flex(gap: 8.0, main: MainAlignment.End, items: [
+              FlexItem(content: Button(text: "全部连接", action: () { for entry : this.entries { entry.connect() } }, tone: Tone.Neutral, appearance: Appearance.Outlined)),
+              FlexItem(content: Button(text: "全部断开", action: () { for entry : this.entries { entry.disconnect() } }, tone: Tone.Neutral, appearance: Appearance.Outlined))
+            ]))
           ])),
-        center: Scroll(child: Column(gap: 12.0, cross: CrossAlignment.Stretch) {
-          ForEach<ProxyEntry>(items: this.entries, identity: (ProxyEntry entry) { ValueKey<Integer>(value: entry.id) }, child: (ProxyEntry entry) { entry })
-        }),
+        center: Splitter(key: NodeKey.Named("proxy-workspace"), dividerPosition: 0.3, children: [
+          Scroll(key: NodeKey.Named("proxy-index"), child: Column(gap: 4.0, cross: CrossAlignment.Stretch) {
+            ForEach<ProxyEntry>(items: this.entries, identity: (ProxyEntry entry) { ValueKey<Integer>(value: entry.id) }, child: (ProxyEntry entry) { entry })
+          }),
+          Scroll(key: NodeKey.Named("proxy-detail"), child: Column(cross: CrossAlignment.Stretch) {
+            if this.entries.size() == 0 { Text(text: "暂无代理", role: WidgetRole.Muted) }
+            ForEach<ProxyEntry>(items: [for (entry : this.entries) if (entry.id == this.selection!!.value) entry],
+              identity: (ProxyEntry entry) { ValueKey<Integer>(value: entry.id) },
+              child: (ProxyEntry entry) { ProxyDetails(entry: entry) })
+          })
+        ]),
         bottom: Column(gap: 6.0, cross: CrossAlignment.Stretch) {
           if this.status != "" { Text(text: this.status, role: WidgetRole.Destructive) }
           if this.dirty {

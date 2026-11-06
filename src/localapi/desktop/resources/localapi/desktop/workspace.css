@@ -1,0 +1,50 @@
+#proxy-workspace, #proxy-index, #proxy-detail {
+    -fx-background-color: -norm-surface-raised;
+    -fx-padding: 0;
+}
+
+#proxy-workspace > .split-pane-divider {
+    -fx-background-color: -norm-divider;
+    -fx-padding: 0 1;
+}
+
+#proxy-index {
+    -fx-min-width: 122;
+    -fx-pref-width: 190;
+}
+
+#proxy-detail {
+    -fx-min-width: 120;
+}
+
+#proxy-index .button {
+    -fx-min-height: 72;
+    -fx-pref-height: 72;
+    -fx-max-height: 72;
+    -fx-max-width: 10000;
+    -fx-alignment: center-left;
+    -fx-text-alignment: left;
+    -fx-wrap-text: false;
+    -fx-padding: 5 12;
+}
+
+#proxy-detail .norm-card {
+    -fx-background-color: -norm-surface-raised;
+    -fx-border-width: 0;
+    -fx-padding: 16;
+}
+
+#proxy-detail > .viewport, #proxy-index > .viewport {
+    -fx-background-color: -norm-surface-raised;
+}
+
+#proxy-detail .text-field {
+    -fx-border-width: 1;
+    -fx-border-color: -norm-divider;
+    -fx-border-radius: 4;
+    -fx-background-radius: 4;
+}
+
+#proxy-detail .text-field:focused {
+    -fx-border-color: -norm-focus;
+}

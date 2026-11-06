@@ -6,8 +6,8 @@ import localapi.proxy.runProxy
 import std.concurrent.Task
 import std.core.Unit
 import std.core.Exception
-import std.context.currentContext
 import ui.Widget
+import ui.State
 import ui.ViewScope
 import ui.Text
 import ui.desktop.kit.Input
@@ -25,7 +25,13 @@ import ui.desktop.kit.Button
 import ui.WidgetRole
 import ui.NodeKey
 
+class ProxyDetails implements Widget {
+  ProxyEntry entry
+  Widget build() { return entry.detail() }
+}
+
 class ProxyEntry implements Widget {
+  State<Integer> selection
   Integer id
   String name
   String controlUrl
@@ -42,7 +48,8 @@ class ProxyEntry implements Widget {
   ViewScope? scope = null
   CommunicationHistory history = CommunicationHistory()
 
-  ProxyEntry(ProxyDefinition definition, Function<Void()> save, Function<Void()> changed, Function<Void(ProxyEntry)> remove) {
+  ProxyEntry(ProxyDefinition definition, State<Integer> selection, Function<Void()> save, Function<Void()> changed, Function<Void(ProxyEntry)> remove) {
+    this.selection = selection
     this.id = definition.id this.name = definition.name
     this.controlUrl = definition.controlUrl this.localBaseUrl = definition.localBaseUrl
     this.enabled = definition.enabled this.save = save this.changed = changed this.remove = remove
@@ -52,8 +59,8 @@ class ProxyEntry implements Widget {
     return ProxyDefinition(id: this.id, name: this.name, controlUrl: this.controlUrl, localBaseUrl: this.localBaseUrl, enabled: this.enabled)
   }
 
-  Void init() {
-    this.scope = currentContext<ViewScope>()!!
+  Void attach(ViewScope owner) {
+    this.scope = owner
     if this.enabled { this.connect() }
   }
 
@@ -100,6 +107,11 @@ class ProxyEntry implements Widget {
     } catch Exception error { this.enabled = previous this.status = ProxyStatus(state: ProxyState.Failed, detail: error.message) }
   }
 
+  Void connectFromEditor() {
+    var owner = this.scope
+    if owner != null { owner.dispatch(this.connect) } else { this.connect() }
+  }
+
   Void reconnect() {
     if this.task == null { this.connect() return }
     Boolean previous = this.enabled
@@ -127,28 +139,36 @@ class ProxyEntry implements Widget {
     } catch Exception error { this.enabled = previous this.status = ProxyStatus(state: ProxyState.Failed, detail: error.message) }
   }
 
-  Void dispose() { this.reconnectPending = false this.generation = this.generation + 1 this.task?.cancel() }
+  Void shutdown() { this.reconnectPending = false this.generation = this.generation + 1 this.task?.cancel() }
 
   Widget build() {
+    Boolean selected = this.selection.value == this.id
+    return Button(key: NodeKey.Named("proxy-select-" + this.id.toString()),
+      text: this.name + "\n" + this.status.label, action: () { this.selection.value = this.id },
+      tone: if selected { Tone.Primary } else { Tone.Neutral },
+      appearance: if selected { Appearance.Soft } else { Appearance.Plain })
+  }
+
+  Widget detail() {
     return Card(sectionGap: 12.0,
-      header: Flex(gap: 12.0, cross: CrossAlignment.Center, items: [
-        FlexItem(content: if this.task != null { Text(text: this.name, role: WidgetRole.Title) } else {
+      header: Column(gap: 6.0, cross: CrossAlignment.Stretch) {
+        if this.task != null { Text(text: this.name, role: WidgetRole.Title) } else {
           Input(key: NodeKey.Named("proxy-name-" + this.id.toString()), placeholder: "代理名称",
             value: Binding<String>(read: () { this.name }, write: (String value) { if this.name != value { this.name = value this.changed() } }),
             submit: () { this.save() })
-        }, grow: 1.0),
-        FlexItem(content: Tag(text: this.status.label, tone: this.status.tone))
-      ]),
+        }
+        Flex(items: [FlexItem(content: Tag(text: this.status.label, tone: this.status.tone))])
+      },
       content: Column(gap: 10.0, cross: CrossAlignment.Stretch) {
         Column(gap: 4.0, cross: CrossAlignment.Stretch) {
           Text(text: "中继地址")
           Input(placeholder: "wss://…/ws/proxy/…?role=client", value: Binding<String>(read: () { this.controlUrl },
-            write: (String value) { if this.controlUrl != value { this.controlUrl = value this.changed() } }), submit: this.connect, enabled: this.task == null)
+            write: (String value) { if this.controlUrl != value { this.controlUrl = value this.changed() } }), submit: this.connectFromEditor, enabled: this.task == null)
         }
         Column(gap: 4.0, cross: CrossAlignment.Stretch) {
           Text(text: "本地服务地址")
           Input(placeholder: "http://127.0.0.1:54345", value: Binding<String>(read: () { this.localBaseUrl },
-            write: (String value) { if this.localBaseUrl != value { this.localBaseUrl = value this.changed() } }), submit: this.connect, enabled: this.task == null)
+            write: (String value) { if this.localBaseUrl != value { this.localBaseUrl = value this.changed() } }), submit: this.connectFromEditor, enabled: this.task == null)
         }
         if this.status.detail != "" { Text(text: this.status.detail, role: WidgetRole.Destructive) }
       },
@@ -158,7 +178,9 @@ class ProxyEntry implements Widget {
         ]), grow: 1.0),
         FlexItem(content: Button(key: NodeKey.Named("proxy-connect-" + this.id.toString()),
           text: if this.task == null { "连接" } else { "断开" },
-          action: () { if this.task == null { this.connect() } else { this.disconnect() } },
+          action: () {
+            if this.task == null { this.connectFromEditor() } else { this.disconnect() }
+          },
           enabled: !this.stopping,
           tone: if this.task == null { Tone.Primary } else { Tone.Neutral },
           appearance: if this.task == null { Appearance.Filled } else { Appearance.Outlined }))
