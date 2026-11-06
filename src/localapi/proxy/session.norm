@@ -23,6 +23,7 @@ class Session {
   WebSocket socket
   Function<Void(String)> status
   CommunicationHistory history
+  Boolean management
   String peer = ""
   Long lastSeen = 0
   Long lastPing = 0
@@ -32,15 +33,15 @@ class Session {
   List<Tunnel> tunnels = []
   List<Download> downloads = []
 
-  Session(Configuration configuration, WebSocket socket, Function<Void(String)> status, CommunicationHistory history) {
+  Session(Configuration configuration, WebSocket socket, Function<Void(String)> status, CommunicationHistory history, Boolean management = false) {
     this.configuration = configuration this.socket = socket this.status = status
-    this.history = history
+    this.history = history this.management = management
   }
 
   Void send(Frame message) {
     String text = toJson(value: message)
     this.socket.sendText(text: text, timeout: duration(seconds: 10, nanoseconds: 0))
-    this.history.record(direction: "sent", type: message.type, message: text)
+    if !this.management { this.history.record(direction: "sent", type: message.type, message: text) }
   }
 
   Void close() {
@@ -65,7 +66,7 @@ class Session {
         switch this.socket.receive(timeout: duration(seconds: 0, nanoseconds: 20000000)) {
           case Text(String text) {
             var message = fromJson<Frame>(value: text)
-            this.history.record(direction: "received", type: message.type, message: text)
+            if !this.management { this.history.record(direction: "received", type: message.type, message: text) }
             if message.type == "hello" {
               if message.version != 1 || message.session == "" { throw Exception(message: "unsupported protocol") }
               if this.peer == "" { this.peer = message.session this.status("ready") }
@@ -139,6 +140,8 @@ class Session {
 
   Void handle(Frame message) {
     try {
+      if this.management && message.type.startsWith(prefix: "ws.") { throw Exception(message: "Management relay does not allow tunnels") }
+      if this.management && message.type == "http.request" && !(message.path ?? "").startsWith(prefix: "/v1/proxies") { throw Exception(message: "Unknown management route") }
       if message.type == "ping" { this.send(message: frame(type: "pong", session: this.peer)) return }
       if message.type == "ack" {
         Download? selected = null

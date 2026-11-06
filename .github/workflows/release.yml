@@ -55,7 +55,7 @@ jobs:
         run: |
           npm ci
           if ($LASTEXITCODE -ne 0) { throw 'Dependency installation failed' }
-          node --test test/agent.test.mjs test/desktop-transport.test.mjs
+          node --test test/agent.test.mjs test/desktop-transport.test.mjs test/management.test.mjs
           if ($LASTEXITCODE -ne 0) { throw 'Agent verification failed' }
       - name: Verify desktop component contracts
         shell: pwsh
