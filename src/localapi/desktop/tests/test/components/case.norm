@@ -29,8 +29,8 @@ Void nativeBindingsKeepIndependentProxyIdentity() {
     var theme = ThemeManager(ThemeDefinition(primary: Color(hex: "#2563EB")))
     var application = FxApplication("Proxy component acceptance")
     var renderer = Renderer(backend: JavaFxBackend(application), scheduler: JavaFxScheduler(application))
-    var one = ProxyEntry(definition: ProxyDefinition(id: 1, name: "Same name", controlUrl: "", localBaseUrl: "http://127.0.0.1:1", enabled: false), save: () { throw Exception(message: "Invalid configuration must not save") }, remove: (ProxyEntry entry) {})
-    var two = ProxyEntry(definition: ProxyDefinition(id: 2, name: "Same name", controlUrl: "", localBaseUrl: "http://127.0.0.1:2", enabled: false), save: () {}, remove: (ProxyEntry entry) {})
+    var one = ProxyEntry(definition: ProxyDefinition(id: 1, name: "Same name", controlUrl: "", localBaseUrl: "http://127.0.0.1:1", enabled: false), save: () { throw Exception(message: "Invalid configuration must not save") }, changed: () {}, remove: (ProxyEntry entry) {})
+    var two = ProxyEntry(definition: ProxyDefinition(id: 2, name: "Same name", controlUrl: "", localBaseUrl: "http://127.0.0.1:2", enabled: false), save: () {}, changed: () {}, remove: (ProxyEntry entry) {})
     var completed = Completion()
     application.run(build: () {
       renderer.render(App(theme: theme, content: Column {

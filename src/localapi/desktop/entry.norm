@@ -156,11 +156,12 @@ class ProxyEntry implements Widget {
         FlexItem(content: Flex(items: [
           FlexItem(content: Button(text: "删除", action: () { this.remove(this) }, enabled: this.task == null, tone: Tone.Danger, appearance: Appearance.Plain))
         ]), grow: 1.0),
-        FlexItem(content: if this.task == null {
-          Button(key: NodeKey.Named("proxy-connect-" + this.id.toString()), text: "连接", action: this.connect)
-        } else {
-          Button(text: "断开", action: this.disconnect, enabled: !this.stopping, tone: Tone.Neutral, appearance: Appearance.Outlined)
-        })
+        FlexItem(content: Button(key: NodeKey.Named("proxy-connect-" + this.id.toString()),
+          text: if this.task == null { "连接" } else { "断开" },
+          action: () { if this.task == null { this.connect() } else { this.disconnect() } },
+          enabled: !this.stopping,
+          tone: if this.task == null { Tone.Primary } else { Tone.Neutral },
+          appearance: if this.task == null { Appearance.Filled } else { Appearance.Outlined }))
       ])
     )
   }

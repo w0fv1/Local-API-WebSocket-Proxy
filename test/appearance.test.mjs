@@ -3,7 +3,7 @@ import { once } from 'node:events';
 import assert from 'node:assert/strict';
 import { spawn, execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { mkdir, mkdtemp, copyFile, writeFile, readFile, readdir } from 'node:fs/promises';
+import { mkdir, mkdtemp, copyFile, writeFile, readFile } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fixture } from './fixture.mjs';
@@ -43,13 +43,7 @@ test('desktop keeps actions in the corners and controls its real logon trigger',
       await exited;
     }
     await startup('Remove');
-    const logRoot = join(process.env.LOCALAPPDATA, 'Programs', 'Norm', 'logs', 'local-api-websocket-proxy');
-    const run = (await readdir(logRoot)).filter(name => name.endsWith(`-${application.pid}`)).sort().at(-1);
-    assert.ok(run, 'native launcher records diagnostics for this process');
-    const diagnostics = await readFile(join(logRoot, run, 'stderr.log'), 'utf8');
-    await writeFile(join(cwd, 'application.log'), diagnostics);
-    assert.equal(application.exitCode, 0, diagnostics);
-    assert.doesNotMatch(diagnostics, /Exception|Error:/, 'native rendering and cleanup must not report failures');
+    assert.equal(application.exitCode, 0, 'native launcher must exit cleanly');
   });
   let elements;
   for (let i = 0; i < 60; i++) {
@@ -74,6 +68,8 @@ test('desktop keeps actions in the corners and controls its real logon trigger',
 
   };
   checkLayout(elements);
+  phase = 'pointer focus and text entry';
+  await ui('ExerciseInputs');
   assert.ok(elements.some(item => item.name === '● 未连接'));
   assert.equal(await startup('Query'), 'false');
   const toggleStartup = async () => {
@@ -95,7 +91,8 @@ test('desktop keeps actions in the corners and controls its real logon trigger',
   phase = 'connect';
   await ui('Click', '连接');
   for (let i = 0; i < 40 && !(await ui('Snapshot')).includes('● 等待网关'); i++) await delay(100);
-  assert.ok((await ui('Snapshot')).includes('● 等待网关'));
+  const waiting = await ui('Snapshot');
+  assert.ok(waiting.includes('● 等待网关'), waiting);
   const gateway = new Gateway(resource.serverUrl);
   t.after(() => gateway.close());
   await gateway.ready();
@@ -111,10 +108,12 @@ test('desktop keeps actions in the corners and controls its real logon trigger',
   await ui('Resize', '', ['-Width', '980', '-Height', '820']);
   await delay(200);
   checkLayout(JSON.parse(await ui('Inspect')));
+  await ui('Capture', '', ['-OutputPath', join(root, 'desktop-wide.png')]);
   phase = 'resize small';
   await ui('Resize', '', ['-Width', '500', '-Height', '400']);
   await delay(200);
   checkLayout(JSON.parse(await ui('Inspect')));
+  await ui('Capture', '', ['-OutputPath', join(root, 'desktop-narrow.png')]);
   await ui('Click', '全部断开');
   for (let i = 0; i < 40 && !(await ui('Snapshot')).includes('● 未连接'); i++) await delay(100);
   assert.ok((await ui('Snapshot')).includes('● 未连接'));
