@@ -1,0 +1,123 @@
+package localapi.desktop
+
+import di.Container
+import di.startContainer
+import jakarta.inject.Inject
+import jakarta.inject.Singleton
+import micronaut.http.HttpResponse
+import micronaut.http.httpResponseOk
+import micronaut.http.httpResponseUnauthorized
+import micronaut.http.annotation.Controller
+import micronaut.http.annotation.Header
+import micronaut.http.annotation.Get
+import micronaut.http.annotation.Post
+import micronaut.web.MicronautConfig
+import micronaut.web.Micronaut
+import micronaut.web.Server
+import localapi.desktop.ManagedServer
+import micronaut.http.httpResponseNotFound
+import std.concurrent.delay
+import std.concurrent.startTask
+import std.time.duration
+import std.concurrent.completion
+import std.core.Exception
+import std.json.toJson
+import std.serialization.Serializable
+import ui.ViewScope
+
+@Serializable()
+value ManagementSettings {
+  Integer port
+  String token
+  String controlUrl
+}
+
+@Serializable()
+value ManagedProxy {
+  Integer id
+  String name
+  String state
+  Boolean enabled
+}
+
+@Singleton()
+class ManagementService {
+  String token = ""
+  ProxyWindow? window = null
+  ViewScope? scope = null
+
+  HttpResponse<String>? handle(String bearer, String operation, Integer id) {
+    if this.token == "" || bearer != "Bearer " + this.token { return httpResponseUnauthorized<String>() }
+    var dispatcher = this.scope!!
+    var owner = this.window!!
+    var result = completion<String>()
+    var timer = startTask(() {
+      delay(duration: duration(seconds: 5, nanoseconds: 0))
+      result.fail(Exception(message: "Control timed out"))
+    })
+    try {
+      dispatcher.dispatch(() {
+        try {
+          if operation == "status" {
+            result.succeed(toJson<List<ManagedProxy>>(value: [for (entry : owner.entries)
+              ManagedProxy(id: entry.id, name: entry.name, state: entry.status.label, enabled: entry.enabled)]))
+          } else {
+            for entry : owner.entries {
+              if entry.id == id {
+                switch operation {
+                  case "connect" { entry.connect() }
+                  case "disconnect" { entry.disconnect() }
+                  case "reconnect" { entry.reconnect() }
+                  case _ { throw Exception(message: "Unknown command") }
+                }
+                result.succeed(toJson<ManagedProxy>(value: ManagedProxy(id: entry.id, name: entry.name, state: entry.status.label, enabled: entry.enabled)))
+                return
+              }
+            }
+            result.succeed("")
+          }
+        } catch Exception failure { result.fail(failure) }
+      })
+      var body = result.task().await()
+      if body == "" { return httpResponseNotFound<String>() }
+      return httpResponseOk<String>(arg0: body)
+    } finally { timer.cancel() result.close() }
+  }
+}
+
+@Controller("/v1/proxies")
+class ManagementController {
+  @Inject() private ManagementService manager
+
+  @Get(produces: ["application/json"])
+  HttpResponse<String>? status(@Header(value: "Authorization", defaultValue: "") String auth) {
+    return manager.handle(bearer: auth, operation: "status", id: 0)
+  }
+  @Post(value: "/{id}/connect", produces: ["application/json"])
+  HttpResponse<String>? connect(Integer id, @Header(value: "Authorization", defaultValue: "") String auth) {
+    return manager.handle(bearer: auth, operation: "connect", id: id)
+  }
+  @Post(value: "/{id}/disconnect", produces: ["application/json"])
+  HttpResponse<String>? disconnect(Integer id, @Header(value: "Authorization", defaultValue: "") String auth) {
+    return manager.handle(bearer: auth, operation: "disconnect", id: id)
+  }
+  @Post(value: "/{id}/reconnect", produces: ["application/json"])
+  HttpResponse<String>? reconnect(Integer id, @Header(value: "Authorization", defaultValue: "") String auth) {
+    return manager.handle(bearer: auth, operation: "reconnect", id: id)
+  }
+}
+
+Container startManagement(ManagementSettings settings, ProxyWindow window, ViewScope scope) {
+  if settings.port < 1 || settings.port > 65535 || settings.token.length() < 32 { throw Exception(message: "Invalid management port or token") }
+  var config = MicronautConfig(micronaut: Micronaut(server: Server(host: "127.0.0.1", port: settings.port)))
+  var container = startContainer<MicronautConfig>(config: config)
+  try {
+    var manager = container.get<ManagementService>()
+    manager.token = settings.token
+    manager.window = window
+    manager.scope = scope
+    container.get<ManagedServer>().start()
+    return container
+  } catch Exception failure { container.close() throw failure }
+}
+

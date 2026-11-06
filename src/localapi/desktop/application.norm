@@ -1,5 +1,11 @@
 package localapi.desktop
 
+import di.Container
+import std.context.currentContext
+import std.concurrent.Task
+import ui.ViewScope
+import localapi.proxy.Configuration
+import localapi.proxy.runProxy
 import localapi.proxy.ProxyDefinition
 import localapi.proxy.ProxySettings
 import std.application.applicationDirectory
@@ -47,6 +53,9 @@ class ProxyWindow implements Widget {
   String status = ""
   StartupToggle startup = StartupToggle()
 
+  Container? management = null
+  Task<Unit>? managementLink = null
+
   Void init() {
     try {
       var saved = fromJson<ProxySettings>(value: readText(path: Path(value: applicationDirectory().value + "/proxy.json"), encoding: TextEncoding.Utf8, maximumBytes: 1048576))
@@ -59,6 +68,26 @@ class ProxyWindow implements Widget {
       if error.reason != FileFailure.NotFound { this.status = "读取配置失败：" + error.message }
     } catch Exception error { this.status = "配置无效：" + error.message }
     if this.entries.size() == 0 { this.add() }
+    try {
+      var settings = fromJson<ManagementSettings>(value: readText(path: Path(value: applicationDirectory().value + "/management.json"), encoding: TextEncoding.Utf8, maximumBytes: 16384))
+      var scope = currentContext<ViewScope>()!!
+      this.management = startManagement(settings: settings, window: this, scope: scope)
+      if settings.controlUrl != "" {
+        var relay = Configuration(controlUrl: settings.controlUrl, localBaseUrl: "http://127.0.0.1:" + settings.port.toString())
+        relay.validate()
+        this.managementLink = scope.start<Unit>(() {
+          runProxy(configuration: relay, management: true, status: (String state) {})
+          return Unit.Value
+        })
+      }
+    } catch FileException error {
+      if error.reason != FileFailure.NotFound { this.status = "管理 API 配置读取失败" }
+    } catch Exception error { this.management?.close() this.management = null this.status = "管理 API 启动失败：" + error.message }
+  }
+
+  Void dispose() {
+    this.managementLink?.cancel()
+    this.management?.close()
   }
 
   Void add() {
