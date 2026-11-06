@@ -42,6 +42,8 @@ import ui.Scroll
 import ui.ForEach
 import ui.ValueKey
 import ui.WidgetRole
+import ui.SizeConstraints
+import ui.Dimension
 import ui.Box
 import ui.Insets
 import ui.CrossAlignment
@@ -50,6 +52,7 @@ class ProxyWindow implements Widget {
   ThemeManager theme
   List<ProxyEntry> entries = []
   Integer nextId = 1
+  Boolean dirty = false
   String status = ""
   StartupToggle startup = StartupToggle()
 
@@ -61,7 +64,7 @@ class ProxyWindow implements Widget {
       var saved = fromJson<ProxySettings>(value: readText(path: Path(value: applicationDirectory().value + "/proxy.json"), encoding: TextEncoding.Utf8, maximumBytes: 1048576))
       saved.validate()
       for definition : saved.proxies {
-        this.entries.add(ProxyEntry(definition: definition, save: this.save, remove: this.remove))
+        this.entries.add(ProxyEntry(definition: definition, save: this.save, changed: this.markChanged, remove: this.remove))
         if definition.id >= this.nextId { this.nextId = definition.id + 1 }
       }
     } catch FileException error {
@@ -90,8 +93,11 @@ class ProxyWindow implements Widget {
     this.management?.close()
   }
 
+  Void markChanged() { this.dirty = true }
+
   Void add() {
-    this.entries.add(ProxyEntry(definition: ProxyDefinition(id: this.nextId, name: "代理 " + this.nextId.toString(), controlUrl: "", localBaseUrl: "http://127.0.0.1:54345", enabled: false), save: this.save, remove: this.remove))
+    this.markChanged()
+    this.entries.add(ProxyEntry(definition: ProxyDefinition(id: this.nextId, name: "代理 " + this.nextId.toString(), controlUrl: "", localBaseUrl: "http://127.0.0.1:54345", enabled: false), save: this.save, changed: this.markChanged, remove: this.remove))
     this.nextId = this.nextId + 1
   }
 
@@ -104,6 +110,7 @@ class ProxyWindow implements Widget {
       return Unit.Value
     })
     this.status = ""
+    this.dirty = false
   }
 
   Void remove(ProxyEntry entry) {
@@ -114,24 +121,30 @@ class ProxyWindow implements Widget {
   }
 
   Widget build() {
-    return App(theme: this.theme, content: Box(padding: Insets(top: 20.0, right: 20.0, bottom: 20.0, left: 20.0), content: Dock(
-      top: Flex(gap: 12.0, cross: CrossAlignment.Center, items: [
-        FlexItem(content: Flex(gap: 8.0, items: [
-          FlexItem(content: Button(text: "全部连接", action: () { for entry : this.entries { entry.connect() } })),
-          FlexItem(content: Button(text: "全部断开", action: () { for entry : this.entries { entry.disconnect() } }, tone: Tone.Neutral, appearance: Appearance.Outlined))
-        ]), grow: 1.0),
-        FlexItem(content: this.startup)
-      ]),
-      center: Scroll(child: Column(gap: 12.0, cross: CrossAlignment.Stretch) {
-        ForEach<ProxyEntry>(items: this.entries, identity: (ProxyEntry entry) { ValueKey<Integer>(value: entry.id) }, child: (ProxyEntry entry) { entry })
-      }),
-      bottom: Column(gap: 8.0) {
-        if this.status != "" { Text(text: this.status, role: WidgetRole.Destructive) }
-        Flex(gap: 8.0, items: [
-          FlexItem(content: Button(text: "新增", action: this.add, tone: Tone.Neutral, appearance: Appearance.Outlined)),
-          FlexItem(content: Button(text: "保存", action: () { try { this.save() } catch Exception error { this.status = error.message } }))
-        ], main: MainAlignment.End)
-      }
+    return App(theme: this.theme, content: Box(
+      size: SizeConstraints(width: Dimension.Fill, height: Dimension.Fill),
+      padding: Insets(top: 16.0, right: 20.0, bottom: 16.0, left: 20.0), content: Dock(
+        top: Box(size: SizeConstraints(width: Dimension.Fill), padding: Insets(bottom: 14.0),
+          content: Flex(wrap: true, gap: 10.0, cross: CrossAlignment.Center, items: [
+            FlexItem(content: Flex(gap: 12.0, cross: CrossAlignment.Center, items: [
+              FlexItem(content: Text(text: "代理连接", role: WidgetRole.Title)),
+              FlexItem(content: Button(text: "新增代理", action: this.add))
+            ]), grow: 1.0),
+            FlexItem(content: Button(text: "全部连接", action: () { for entry : this.entries { entry.connect() } }, tone: Tone.Neutral, appearance: Appearance.Outlined)),
+            FlexItem(content: Button(text: "全部断开", action: () { for entry : this.entries { entry.disconnect() } }, tone: Tone.Neutral, appearance: Appearance.Outlined)),
+            FlexItem(content: this.startup)
+          ])),
+        center: Scroll(child: Column(gap: 12.0, cross: CrossAlignment.Stretch) {
+          ForEach<ProxyEntry>(items: this.entries, identity: (ProxyEntry entry) { ValueKey<Integer>(value: entry.id) }, child: (ProxyEntry entry) { entry })
+        }),
+        bottom: Column(gap: 6.0, cross: CrossAlignment.Stretch) {
+          if this.status != "" { Text(text: this.status, role: WidgetRole.Destructive) }
+          if this.dirty {
+            Flex(main: MainAlignment.End, items: [
+              FlexItem(content: Button(text: "保存更改", action: () { try { this.save() } catch Exception error { this.status = error.message } }))
+            ])
+          }
+        }
     )))
   }
 }

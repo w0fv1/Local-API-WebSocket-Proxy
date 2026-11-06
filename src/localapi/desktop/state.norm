@@ -24,6 +24,7 @@ value ProxyStatus {
     switch state {
       case Connected { break Tone.Success }
       case Disconnected { break Tone.Neutral }
+      case Waiting { break Tone.Neutral }
       case Failed { break Tone.Danger }
       case _ { break Tone.Warning }
     }

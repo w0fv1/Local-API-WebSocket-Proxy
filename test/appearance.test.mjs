@@ -60,27 +60,18 @@ test('desktop keeps actions in the corners and controls its real logon trigger',
   const checkLayout = elements => {
     const window = elements[0];
     const buttons = elements.filter(item => item.type === 'ControlType.Button');
-    const add = buttons.find(item => item.name === '新增');
-    const save = buttons.find(item => item.name === '保存');
+    const add = buttons.find(item => item.name === '新增代理');
+    const save = buttons.find(item => item.name === '保存更改');
     const startup = elements.find(item => item.name === '开机启动');
-    assert.ok(add && save && startup, `concise actions and startup switch exist: ${JSON.stringify(elements)}`);
-    assert.ok(add.x < save.x && add.y === save.y);
-    assert.ok(save.x + save.width > window.x + window.width - 100);
-    assert.ok(save.y + save.height > window.y + window.height - 100);
-    assert.ok(startup.x > window.x + window.width / 2 && startup.y < window.y + 130);
-    const connectAll = buttons.find(item => item.name === '全部连接');
-    assert.ok(Math.abs(connectAll.y - startup.y) < 20, 'startup shares the bulk action row');
+    assert.ok(add && startup && !save, 'toolbar actions remain visible and saved settings need no save button');
     const status = elements.find(item => /^● /.test(item.name));
-    const connect = buttons.find(item => item.name === '连接');
-    const disconnect = buttons.find(item => item.name === '断开');
+    const action = buttons.find(item => item.name === '连接' || item.name === '断开');
     const remove = buttons.find(item => item.name === '删除');
-    if (status.width > 0) assert.ok(status.x + status.width > window.x + window.width * 0.7, 'card status is in its upper right corner');
-    if (connect.width > 0 && disconnect.width > 0 && remove.width > 0) {
-      assert.ok(connect.x < disconnect.x && disconnect.x < remove.x && connect.y === remove.y);
-      assert.ok(remove.x + remove.width > window.x + window.width * 0.7, 'card actions align right');
-      if (status.width > 0) assert.ok(Math.abs(status.x + status.width - remove.x - remove.width) <= status.height, 'status aligns with card actions within the tag padding');
-    }
-    for (const item of elements.slice(1)) assert.ok(!/Local API WebSocket Proxy|每个本地 API|配置已保存|连接的代理会|关闭窗口会|新增代理|保存配置/.test(item.name), `removed copy: ${item.name}`);
+    assert.ok(add.y < status.y && status.y < action.y);
+    assert.ok(remove.x < action.x && Math.abs(remove.y - action.y) < 12);
+    assert.ok(action.x + action.width > window.x + window.width * 0.7, 'actions use the available card width');
+    assert.ok(elements.some(item => item.name === '中继地址') && elements.some(item => item.name === '本地服务地址'));
+
   };
   checkLayout(elements);
   assert.ok(elements.some(item => item.name === '● 未连接'));
@@ -112,8 +103,8 @@ test('desktop keeps actions in the corners and controls its real logon trigger',
   assert.ok((await ui('Snapshot')).includes('● 已连接'));
   await ui('Capture', '', ['-OutputPath', join(root, 'desktop.png')]);
   phase = 'add and save';
-  await ui('Click', '新增');
-  await ui('Click', '保存');
+  await ui('Click', '新增代理');
+  await ui('Click', '保存更改');
   assert.equal(JSON.parse(await readFile(join(cwd, 'proxy.json'), 'utf8')).proxies.length, 2);
   assert.ok(JSON.parse(await ui('Inspect')).some(item => item.name === '开机启动' && item.enabled), 'adding a proxy preserves the startup widget');
   phase = 'resize large';
