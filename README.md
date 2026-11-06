@@ -2,6 +2,8 @@
 
 Built with [Norm](https://github.com/normlanguage/Norm).
 
+桌面进程可通过独立管理中继远程查询状态、连接、断开和重连，配置见[代理管理 API](docs/management.md)。
+
 Windows 桌面客户端通过 Nfirco RELAY 通道转发本机 HTTP API 和 WebSocket。桌面界面使用 [ui.desktop.kit](https://github.com/normlanguage/ui.desktop.kit) 组件库与 [Norm UI](https://github.com/normlanguage/ui) 的 [ui.desktop](https://github.com/normlanguage/ui.desktop) JavaFX 实现，网络请求由 Norm 进程执行。
 
 ```text
