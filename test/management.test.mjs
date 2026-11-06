@@ -28,10 +28,15 @@ test('management relay stays available while its target disconnects and reconnec
   assert.equal((await call('GET','/v1/proxies','wrong')).status,401);
   async function state(){const r=await call('GET','/v1/proxies');assert.equal(r.status,200);return JSON.parse(r.body)[0];}
   assert.equal((await state()).enabled,false);
+  let connections=0;
+  business.relay.on('connection',socket=>{if(socket.role==='client') connections++});
   for(const action of ['connect','reconnect','disconnect','connect']){
+    const previous=connections;
     assert.equal((await call('POST','/v1/proxies/1/'+action)).status,200);
     const enabled=action!=='disconnect';const deadline=Date.now()+12000;
-    while(Date.now()<deadline && (await state()).enabled!==enabled) await new Promise(r=>setTimeout(r,100));
+    const settled=()=>enabled?connections>previous:[...business.relay.clients].every(ws=>ws.role!=='client');
+    while(Date.now()<deadline && (!settled() || (await state()).enabled!==enabled)) await new Promise(r=>setTimeout(r,100));
+    assert.ok(settled(),action+' did not change the business connection');
     assert.equal((await state()).enabled,enabled);
   }
   const data=new Gateway(business.serverUrl);t.after(()=>data.close());await data.ready();

@@ -56,7 +56,10 @@ class ProxyEntry implements Widget {
   }
 
   Void connect() {
-    if this.task != null { return }
+    if this.task != null {
+      if this.stopping { this.reconnect() }
+      return
+    }
     Boolean previous = this.enabled
     try {
       var configuration = this.definition().configuration()
@@ -97,8 +100,16 @@ class ProxyEntry implements Widget {
 
   Void reconnect() {
     if this.task == null { this.connect() return }
-    this.disconnect()
-    this.reconnectPending = this.stopping
+    Boolean previous = this.enabled
+    try {
+      this.enabled = true
+      this.save()
+      this.reconnectPending = true
+      this.stopping = true
+      this.generation = this.generation + 1
+      this.status = ProxyStatus(state: ProxyState.Disconnecting)
+      this.task?.cancel()
+    } catch Exception error { this.enabled = previous this.status = ProxyStatus(state: ProxyState.Failed, detail: error.message) }
   }
 
   Void disconnect() {
