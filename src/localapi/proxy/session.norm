@@ -3,6 +3,8 @@ package localapi.proxy
 import std.core.Exception
 import std.collections.listContains
 import std.http.Uri
+import std.http.HttpException
+import std.http.HttpFailure
 import std.io.Bytes
 import std.io.TextEncoding
 import std.io.bytes
@@ -97,8 +99,14 @@ class Session {
               status: result.status, headers: result.headers)
             this.downloads.add(download)
             this.send(message: download.next(session: this.peer))
+          } catch HttpException error {
+            String code = "REMOTE_ERROR"
+            if error.reason == HttpFailure.Timeout { code = "REQUEST_TIMEOUT" }
+            else if error.reason == HttpFailure.Connect { code = "LOCAL_SERVICE_UNAVAILABLE" }
+            else if error.reason == HttpFailure.Cancelled { code = "CANCELLED" }
+            this.send(message: frame(type: "error", session: this.peer, id: work.id, error: error.message, errorCode: code))
           } catch Exception error {
-            this.send(message: frame(type: "error", session: this.peer, id: work.id, error: error.message))
+            this.send(message: frame(type: "error", session: this.peer, id: work.id, error: error.message, errorCode: "REMOTE_ERROR"))
           }
         }
       }
