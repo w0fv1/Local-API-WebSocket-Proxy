@@ -41,8 +41,9 @@ const server = createServer({ shouldUpgradeCallback: req => req.headers.upgrade?
     res.writeHead(reply.status, outgoing);
     res.end(reply.body);
   } catch (error) {
-    if (!res.headersSent) res.writeHead(502, { 'content-type': 'text/plain; charset=utf-8' });
-    res.end(error.message);
+    const status = error.code === 'REQUEST_TIMEOUT' ? 504 : ['LOCAL_SERVICE_UNAVAILABLE', 'CHANNEL_UNAVAILABLE', 'CANCELLED'].includes(error.code) ? 503 : 502;
+    if (!res.headersSent) res.writeHead(status, { 'content-type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({ success: false, code: error.code ?? 'REMOTE_ERROR', message: error.message, requestId: error.requestId, possiblyExecuted: error.possiblyExecuted }));
   }
 });
 const sockets = new WebSocketServer({ noServer: true, maxPayload: 8 * 1024 * 1024 });

@@ -66,6 +66,8 @@ class HttpWork {
 }
 
 Task<HttpReply> forwardHttp(Configuration configuration, Frame request, Bytes body) {
+  Long timeoutSeconds = request.timeoutSeconds ?? 30
+  if timeoutSeconds < 1 || timeoutSeconds > 300 { throw Exception(message: "HTTP timeout must be between 1 and 300 seconds") }
   String target = requestTarget(configuration: configuration, request: request, websocket: false)
   HttpMethod method = switch request.method ?? "GET" {
     case "GET" { break HttpMethod.Get }
@@ -80,7 +82,7 @@ Task<HttpReply> forwardHttp(Configuration configuration, Frame request, Bytes bo
   return startTask<HttpReply> {
     var response = systemHttpClient().send(
       request: HttpRequest(method: method, uri: Uri(value: target), headers: requestHeaders(headers: request.headers ?? []), body: body),
-      timeout: duration(seconds: 30, nanoseconds: 0))
+      timeout: duration(seconds: timeoutSeconds, nanoseconds: 0))
     return use<HttpReply>(resource: response, body: () {
       var original = response.headers().values
       Array<Header> headers = Array.filled(size: original.size(), value: Header(name: "", value: ""))

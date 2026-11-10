@@ -72,3 +72,30 @@ test('agent forwards HTTP and CDP through a relay and recovers without replay', 
   assert.equal(await readFile(historyPath, 'utf8'), saved);
   assert.ok(!output.includes('通讯记录读取失败'));
 });
+
+
+test('native HTTP budget exceeds thirty seconds and timeout leaves peers usable', { timeout: 90000 }, async t => {
+  const resources = await fixture({ delayMilliseconds: 31000 });
+  t.after(() => resources.close());
+  const cwd = resolve('.tmp/relay-budget-test');
+  await mkdir(cwd, { recursive: true });
+  await writeFile(resolve(cwd, 'proxy.json'), JSON.stringify(resources.configuration));
+  const agent = spawn(resolve('build/agent.exe'), [], { cwd, windowsHide: true, stdio: 'ignore' });
+  t.after(() => agent.kill());
+  const { Gateway } = await import('../gateway/gateway.mjs');
+  const gateway = new Gateway(resources.serverUrl);
+  t.after(() => gateway.close());
+  await gateway.ready();
+  const slow = gateway.request({ method: 'POST', path: '/delayed', timeoutSeconds: 35 });
+  await assert.rejects(gateway.request({ method: 'POST', path: '/never', timeoutSeconds: 1 }), error => {
+    assert.equal(error.code, 'REQUEST_TIMEOUT');
+    assert.ok(error.requestId);
+    assert.equal(error.possiblyExecuted, true);
+    return true;
+  });
+  assert.equal((await gateway.request({ method: 'GET', path: '/after-timeout' })).status, 201);
+  assert.equal((await slow).body.toString(), 'completed');
+  assert.equal(resources.requests.filter(r => r.path === '/never').length, 1);
+  assert.equal(resources.requests.filter(r => r.path === '/delayed').length, 1);
+  assert.equal(agent.exitCode, null);
+});

@@ -2,7 +2,7 @@ import { createServer } from 'node:http';
 import { once } from 'node:events';
 import { WebSocketServer, WebSocket } from 'ws';
 
-export async function fixture({ autoPong = true } = {}) {
+export async function fixture({ autoPong = true, delayMilliseconds = 0 } = {}) {
   const requests = [];
   const local = createServer((req, res) => {
     requests.push({ method: req.method, path: req.url, headers: req.headers });
@@ -10,6 +10,7 @@ export async function fixture({ autoPong = true } = {}) {
     req.on('data', data => chunks.push(data));
     req.on('end', () => {
       if (req.url === '/never') return;
+      if (req.url === '/delayed') { setTimeout(() => res.writeHead(200).end('completed'), delayMilliseconds); return; }
       res.writeHead(201, { 'content-type': 'application/octet-stream', 'set-cookie': ['one=1', 'two=2'] });
       res.end(req.url === '/large' ? Buffer.alloc(1500000, 255) : Buffer.concat(chunks));
     });
