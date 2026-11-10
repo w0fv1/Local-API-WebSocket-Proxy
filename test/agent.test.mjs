@@ -75,7 +75,7 @@ test('agent forwards HTTP and CDP through a relay and recovers without replay', 
 
 
 test('native HTTP budget exceeds thirty seconds and timeout leaves peers usable', { timeout: 90000 }, async t => {
-  const resources = await fixture({ delayMilliseconds: 31000 });
+  const resources = await fixture({ delayMilliseconds: 31000, strictRequestFrames: true });
   t.after(() => resources.close());
   const cwd = resolve('.tmp/relay-budget-test');
   await mkdir(cwd, { recursive: true });

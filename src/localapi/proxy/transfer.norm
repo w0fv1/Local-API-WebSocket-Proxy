@@ -3,6 +3,7 @@ package localapi.proxy
 import std.concurrent.Task
 import std.concurrent.startTask
 import std.core.Exception
+import std.json.fromJson
 import std.http.HttpHeader
 import std.http.HttpMethod
 import std.http.HttpRequest
@@ -66,7 +67,12 @@ class HttpWork {
 }
 
 Task<HttpReply> forwardHttp(Configuration configuration, Frame request, Bytes body) {
-  Long timeoutSeconds = request.timeoutSeconds ?? 30
+  Long timeoutSeconds = 30
+  for Header header : request.headers ?? [] {
+    if header.name.equalsIgnoreCaseAscii(other: "X-LocalAPI-Timeout-Seconds") {
+      timeoutSeconds = fromJson<Long>(value: header.value)
+    }
+  }
   if timeoutSeconds < 1 || timeoutSeconds > 300 { throw Exception(message: "HTTP timeout must be between 1 and 300 seconds") }
   String target = requestTarget(configuration: configuration, request: request, websocket: false)
   HttpMethod method = switch request.method ?? "GET" {
@@ -79,10 +85,11 @@ Task<HttpReply> forwardHttp(Configuration configuration, Frame request, Bytes bo
     case "OPTIONS" { break HttpMethod.Options }
     case _ { throw Exception(message: "unsupported HTTP method") }
   }
+  var timeout = duration(seconds: timeoutSeconds, nanoseconds: 0)
   return startTask<HttpReply> {
     var response = systemHttpClient().send(
       request: HttpRequest(method: method, uri: Uri(value: target), headers: requestHeaders(headers: request.headers ?? []), body: body),
-      timeout: duration(seconds: timeoutSeconds, nanoseconds: 0))
+      timeout: timeout)
     return use<HttpReply>(resource: response, body: () {
       var original = response.headers().values
       Array<Header> headers = Array.filled(size: original.size(), value: Header(name: "", value: ""))

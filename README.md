@@ -106,4 +106,4 @@ node --test test/agent.test.mjs test/desktop-transport.test.mjs
 网络回归包含 HTTP 请求头、二进制分块、CDP、断线恢复，以及异常 JSON 后继续工作。Native Image 构建检查 Windows 文本辅助功能 JNI 元数据；编译器和桌面适配层固定到包含相应修复的提交。
 
 
-HTTP 请求预算和失败字段定义见 [protocol.norm](src/localapi/proxy/protocol.norm)，转发执行见 [transfer.norm](src/localapi/proxy/transfer.norm)，错误分类见 [session.norm](src/localapi/proxy/session.norm)。调用方可通过 Gateway 的 `timeoutSeconds` 设置时限；超时只取消对应请求，不重放写操作。[原生代理回归](test/agent.test.mjs)覆盖跨越旧等待上限、并发请求隔离及超时后的连接复用。
+HTTP 预算通过现有 headers 中的 `X-LocalAPI-Timeout-Seconds` 传递，请求帧沿用既有字段。失败字段定义见 [protocol.norm](src/localapi/proxy/protocol.norm)，转发执行见 [transfer.norm](src/localapi/proxy/transfer.norm)，错误分类见 [session.norm](src/localapi/proxy/session.norm)。调用方可通过 Gateway 的 `timeoutSeconds` 设置时限；超时只取消对应请求，不重放写操作。[原生代理回归](test/agent.test.mjs)覆盖跨越旧等待上限、并发请求隔离及超时后的连接复用。

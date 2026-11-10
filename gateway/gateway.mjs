@@ -135,7 +135,11 @@ export class Gateway extends EventEmitter {
     const abort = () => operation.fail(new Error('request cancelled'));
     signal?.addEventListener('abort', abort, { once: true });
     if (signal?.aborted) abort();
-    else this.upload(operation, { type: 'http.request', method, path, headers, timeoutSeconds }, body).catch(operation.fail);
+    else {
+      const forwarded = headers.filter(header => header.name.toLowerCase() !== 'x-localapi-timeout-seconds');
+      forwarded.push({ name: 'X-LocalAPI-Timeout-Seconds', value: String(timeoutSeconds) });
+      this.upload(operation, { type: 'http.request', method, path, headers: forwarded }, body).catch(operation.fail);
+    }
     return operation.promise.finally(() => signal?.removeEventListener('abort', abort));
   }
 
