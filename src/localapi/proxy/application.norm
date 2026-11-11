@@ -4,6 +4,7 @@ import std.concurrent.delay
 import std.core.Exception
 import std.filesystem.Path
 import std.filesystem.readText
+import std.http.HeaderMap
 import std.http.Uri
 import std.io.TextEncoding
 import std.json.fromJson
@@ -16,13 +17,15 @@ Void main() {
 }
 
 Void runProxy(Configuration configuration, Function<Void(String)> status,
-    CommunicationHistory history = CommunicationHistory(), Boolean management = false) {
+    CommunicationHistory history = CommunicationHistory(), Boolean management = false,
+    HeaderMap headers = HeaderMap(values: [])) {
   configuration.validate()
   Long backoff = 1
   for true {
     status("connecting")
     try {
-      var socket = connectWebSocket(uri: Uri(value: configuration.controlUrl), timeout: duration(seconds: 10, nanoseconds: 0))
+      var socket = connectWebSocket(uri: Uri(value: configuration.controlUrl), headers: headers,
+        timeout: duration(seconds: 10, nanoseconds: 0))
       var session = Session(configuration: configuration, socket: socket, status: status, history: history, management: management)
       try { session.run() } finally {
         if session.peer != "" { backoff = 1 }
