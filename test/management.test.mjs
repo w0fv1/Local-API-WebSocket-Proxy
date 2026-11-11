@@ -44,6 +44,7 @@ test('management relay stays available while its target disconnects and reconnec
   const gateway=new Gateway(relayUrl.href);t.after(()=>gateway.close());await gateway.ready();
   const client=[...management.relay.clients].find(socket=>socket.role==='client');
   assert.equal(client.authorization,'Bearer '+handshakeKey);
+  assert.equal(client.proxyControl,'1');
   const call=(method,path,auth=apiKey)=>gateway.request({method,path,headers:[{name:'Authorization',value:'Bearer '+auth}],body:Buffer.alloc(0)});
   assert.equal((await call('GET','/v1/proxies','wrong')).status,401);
   assert.equal((await call('GET','/v1/proxies','other-site')).status,403);

@@ -29,6 +29,7 @@ export async function fixture({ autoPong = true, delayMilliseconds = 0, strictRe
   relay.on('connection', (ws, req) => {
     ws.role = new URL(req.url, 'http://localhost').searchParams.get('role');
     ws.authorization = req.headers.authorization;
+    ws.proxyControl = req.headers['x-userver-proxy-control'];
     if (ws.role === 'client' && [...relay.clients].some(peer => peer !== ws && peer.role === 'client' && peer.readyState === WebSocket.OPEN)) { ws.close(1008); return; }
     ws.on('message', (data, binary) => {
       if (strictRequestFrames && ws.role === 'server') {

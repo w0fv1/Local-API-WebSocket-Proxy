@@ -89,7 +89,8 @@ class ProxyWindow implements Widget {
         var relay = Configuration(controlUrl: settings.controlUrl(), localBaseUrl: "http://127.0.0.1:" + settings.port.toString())
         this.managementLink = scope.start<Unit>(() {
           runProxy(configuration: relay, management: true, status: (String state) {},
-            headers: HeaderMap(k1: "Authorization", v1: "Bearer " + apiKey))
+            headers: HeaderMap(k1: "Authorization", v1: "Bearer " + apiKey,
+              k2: "X-Userver-Proxy-Control", v2: "1"))
           return Unit.Value
         })
       }
