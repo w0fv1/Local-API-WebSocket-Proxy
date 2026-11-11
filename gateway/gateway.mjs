@@ -67,7 +67,7 @@ export class Gateway extends EventEmitter {
     if (frame.type === 'pong') return;
     const operation = this.operations.get(frame.id);
     if (!operation) return;
-    if (frame.type === 'error') { operation.fail(new Error(frame.error)); return; }
+    if (frame.type === 'error') { operation.fail(Object.assign(new Error(frame.error), { code: frame.errorCode ?? 'REMOTE_ERROR', requestId: frame.id, possiblyExecuted: true })); return; }
     if (frame.type === 'upload.ack') { operation.ack?.(); return; }
     if (frame.type === 'ws.opened') { operation.resolve(operation.tunnel); return; }
     if (frame.type === 'ws.closed') { operation.tunnel.close(frame.status); return; }
@@ -89,7 +89,7 @@ export class Gateway extends EventEmitter {
     }
   }
 
-  operation() {
+  operation(timeoutMilliseconds = 45000) {
     if (!this.available) throw new Error('agent is not ready');
     if (this.operations.size >= 16) throw new Error('gateway capacity exceeded');
     const id = randomUUID();
@@ -107,7 +107,7 @@ export class Gateway extends EventEmitter {
         try { this.send({ type: 'cancel', id }); } catch { this.ws.terminate(); }
       }
     };
-    operation.timeout = setTimeout(() => operation.fail(new Error('operation timed out')), 45000);
+    operation.timeout = setTimeout(() => operation.fail(Object.assign(new Error('operation timed out'), { code: 'REQUEST_TIMEOUT', requestId: id, possiblyExecuted: true })), timeoutMilliseconds);
     this.operations.set(id, operation);
     return operation;
   }
@@ -129,12 +129,17 @@ export class Gateway extends EventEmitter {
     }
   }
 
-  request({ method, path, headers = [], body = Buffer.alloc(0), signal }) {
-    const operation = this.operation();
+  request({ method, path, headers = [], body = Buffer.alloc(0), signal, timeoutSeconds = 60 }) {
+    if (!Number.isInteger(timeoutSeconds) || timeoutSeconds < 1 || timeoutSeconds > 300) throw new Error('HTTP timeout must be between 1 and 300 seconds');
+    const operation = this.operation((timeoutSeconds + 5) * 1000);
     const abort = () => operation.fail(new Error('request cancelled'));
     signal?.addEventListener('abort', abort, { once: true });
     if (signal?.aborted) abort();
-    else this.upload(operation, { type: 'http.request', method, path, headers }, body).catch(operation.fail);
+    else {
+      const forwarded = headers.filter(header => header.name.toLowerCase() !== 'x-localapi-timeout-seconds');
+      forwarded.push({ name: 'X-LocalAPI-Timeout-Seconds', value: String(timeoutSeconds) });
+      this.upload(operation, { type: 'http.request', method, path, headers: forwarded }, body).catch(operation.fail);
+    }
     return operation.promise.finally(() => signal?.removeEventListener('abort', abort));
   }
 

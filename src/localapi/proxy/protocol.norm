@@ -41,14 +41,15 @@ value Frame {
   Boolean? binary
   Integer? status
   String? error
+  String? errorCode
 }
 
 Frame frame(String type, String session, String id = "", Integer? version = null,
     Array<Integer>? data = null, Boolean? end = null, Boolean? binary = null,
-    Integer? status = null, Array<Header>? headers = null, String? error = null) {
+    Integer? status = null, Array<Header>? headers = null, String? error = null, String? errorCode = null) {
   return Frame(type: type, session: session, id: id, version: version, method: null,
     path: null, port: null, headers: headers, data: data, end: end,
-    binary: binary, status: status, error: error)
+    binary: binary, status: status, error: error, errorCode: errorCode)
 }
 
 HeaderMap requestHeaders(Array<Header> headers) {
