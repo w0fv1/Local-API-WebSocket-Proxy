@@ -12,12 +12,12 @@
   {
     "repository": "normlanguage/ui.desktop",
     "directory": "ui.desktop",
-    "revision": "2fe1079e58b64be60f3c46cf1bb9bc3be364f257"
+    "revision": "2898934df28453436b4414ab322468003a07651b"
   },
   {
     "repository": "normlanguage/ui.desktop.kit",
     "directory": "ui.desktop.kit",
-    "revision": "cb2ec841cd7e0af20343d415650af57732b411af"
+    "revision": "a1a8da5edfffb397ed20ce839aaf29adaf0f5ed6"
   },
   {
     "repository": "normlanguage/ui.theme",

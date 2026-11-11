@@ -61,8 +61,8 @@ test('native desktop isolates proxies, detects missing pong and restores enabled
   const recovered = Promise.all([once(one, 'ready'), once(two, 'ready')]);
   await ui(application, 'Click', '全部连接');
   await recovered;
-  await ui(application, 'Click', '新增');
-  await ui(application, 'Click', '保存');
+  await ui(application, 'Click', '新增代理');
+  await ui(application, 'Click', '保存更改');
   assert.equal(JSON.parse(await readFile(join(cwd, 'proxy.json'), 'utf8')).proxies.length, 3);
   await ui(application, 'Click', '删除');
   assert.equal(JSON.parse(await readFile(join(cwd, 'proxy.json'), 'utf8')).proxies.length, 2);

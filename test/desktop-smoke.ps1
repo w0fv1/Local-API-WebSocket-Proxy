@@ -10,10 +10,10 @@ $launcher = Start-Process -FilePath (Join-Path $directory 'local-api-websocket-p
 try {
     Start-Sleep -Seconds 4
     $snapshot = & (Join-Path $PSScriptRoot 'desktop-ui.ps1') -LauncherId $launcher.Id -Action Snapshot
-    if (-not ($snapshot -contains '全部连接') -or -not ($snapshot -contains '新增')) { throw 'Native desktop did not expose proxy controls' }
+    if (-not ($snapshot -contains '全部连接') -or -not ($snapshot -contains '新增代理')) { throw 'Native desktop did not expose proxy controls' }
     $initial = & (Join-Path $PSScriptRoot 'desktop-ui.ps1') -LauncherId $launcher.Id -Action Inspect | ConvertFrom-Json
     if (@($initial | Where-Object { $_.name -eq '删除' -and $_.type -eq 'ControlType.Button' }).Count -ne 1) { throw 'Initial proxy is missing' }
-    & (Join-Path $PSScriptRoot 'desktop-ui.ps1') -LauncherId $launcher.Id -Action Click -Text '新增'
+    & (Join-Path $PSScriptRoot 'desktop-ui.ps1') -LauncherId $launcher.Id -Action Click -Text '新增代理'
     Start-Sleep -Milliseconds 500
     $updated = & (Join-Path $PSScriptRoot 'desktop-ui.ps1') -LauncherId $launcher.Id -Action Inspect | ConvertFrom-Json
     if (@($updated | Where-Object { $_.name -eq '删除' -and $_.type -eq 'ControlType.Button' }).Count -ne 2) { throw 'Native add did not create an independent second proxy' }
