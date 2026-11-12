@@ -2,7 +2,7 @@ import { createServer } from 'node:http';
 import { once } from 'node:events';
 import { WebSocketServer, WebSocket } from 'ws';
 
-export async function fixture({ autoPong = true, delayMilliseconds = 0, strictRequestFrames = false } = {}) {
+export async function fixture({ autoPong = true, delayMilliseconds = 0, strictRequestFrames = false, relayHttpHandler } = {}) {
   const requests = [];
   const local = createServer((req, res) => {
     requests.push({ method: req.method, path: req.url, headers: req.headers });
@@ -20,10 +20,16 @@ export async function fixture({ autoPong = true, delayMilliseconds = 0, strictRe
   echo.on('connection', ws => ws.on('message', (data, binary) => ws.send(data, { binary })));
   local.listen(0, '127.0.0.1');
   await once(local, 'listening');
-  const relay = new WebSocketServer({ port: 0, host: '127.0.0.1', maxPayload: 1024 * 1024, autoPong });
-  await once(relay, 'listening');
+  const relayHttp = createServer({
+    shouldUpgradeCallback: request => request.headers.upgrade?.toLowerCase() === 'websocket'
+  }, relayHttpHandler ?? ((req, res) => res.writeHead(404).end()));
+  const relay = new WebSocketServer({ server: relayHttp, maxPayload: 1024 * 1024, autoPong });
+  relayHttp.listen(0, '127.0.0.1');
+  await once(relayHttp, 'listening');
   relay.on('connection', (ws, req) => {
     ws.role = new URL(req.url, 'http://localhost').searchParams.get('role');
+    ws.authorization = req.headers.authorization;
+    ws.proxyControl = req.headers['x-userver-proxy-control'];
     if (ws.role === 'client' && [...relay.clients].some(peer => peer !== ws && peer.role === 'client' && peer.readyState === WebSocket.OPEN)) { ws.close(1008); return; }
     ws.on('message', (data, binary) => {
       if (strictRequestFrames && ws.role === 'server') {
@@ -41,7 +47,7 @@ export async function fixture({ autoPong = true, delayMilliseconds = 0, strictRe
     close() {
       for (const ws of relay.clients) ws.terminate();
       for (const ws of echo.clients) ws.terminate();
-      relay.close(); echo.close(); local.closeAllConnections(); local.close();
+    relay.close(); relayHttp.closeAllConnections(); relayHttp.close(); echo.close(); local.closeAllConnections(); local.close();
     }
   };
 }

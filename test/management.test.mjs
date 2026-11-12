@@ -10,7 +10,23 @@ import {fixture} from './fixture.mjs';
 import {Gateway} from '../gateway/gateway.mjs';
 
 test('management relay stays available while its target disconnects and reconnects', {timeout:90000}, async t=>{
-  const management=await fixture(), business=await fixture();
+  const apiKey=randomBytes(32).toString('hex');
+  const loginToken=randomBytes(32).toString('hex');
+  const handshakeKey=randomBytes(32).toString('hex');
+  const channelUuid='b3d4fbb5e37948968278886c20274c1a';
+  const activeKeys=new Set([apiKey,loginToken]);
+  let authorizationAvailable=true;
+  const management=await fixture({relayHttpHandler:async(req,res)=>{
+    if(req.method!=='POST'||req.url!=='/apim/ws-proxy/control/authorize') return res.writeHead(404).end();
+    if(!authorizationAvailable) return res.writeHead(503).end();
+    const chunks=[];
+    for await(const chunk of req) chunks.push(chunk);
+    const body=JSON.parse(Buffer.concat(chunks));
+    const bearer=req.headers.authorization?.replace(/^Bearer /,'');
+    if(bearer==='other-site'||body.channelUuid!==channelUuid) return res.writeHead(403).end();
+    res.writeHead(activeKeys.has(bearer)?204:401).end();
+  }});
+  const business=await fixture();
   t.after(()=>{management.close();business.close()});
   const listener=createServer().listen(0,'127.0.0.1');await once(listener,'listening');
   const port=listener.address().port;await new Promise(resolve=>listener.close(resolve));
@@ -18,14 +34,22 @@ test('management relay stays available while its target disconnects and reconnec
   const dir=await mkdtemp(join(root,'control-'));const exe=join(dir,'local-api-websocket-proxy.exe');
   await copyFile(resolve('build/local-api-websocket-proxy.exe'),exe);
   for(const file of ['startup.ps1','supervise.ps1']) await copyFile(resolve(file),join(dir,file));
-  const token=randomBytes(32).toString('hex');
-  await writeFile(join(dir,'management.json'),JSON.stringify({port,token,controlUrl:management.configuration.controlUrl}));
+  const relayUrl=new URL(management.serverUrl);
+  const userverUrl='http://'+relayUrl.host;
+  relayUrl.pathname='/ws/proxy/'+channelUuid;
+  await writeFile(join(dir,'management.json'),JSON.stringify({port,userverUrl,channelUuid,apiKey:handshakeKey}));
   await writeFile(join(dir,'startup.json'),JSON.stringify({taskName:'Control test '+process.pid}));
   await writeFile(join(dir,'proxy.json'),JSON.stringify({proxies:[{id:1,name:'Local Test',...business.configuration,enabled:false}]}));
   const app=spawn(exe,[],{cwd:dir,windowsHide:true,stdio:'ignore'});t.after(()=>app.kill());
-  const gateway=new Gateway(management.serverUrl);t.after(()=>gateway.close());await gateway.ready();
-  const call=(method,path,auth=token)=>gateway.request({method,path,headers:[{name:'Authorization',value:'Bearer '+auth}],body:Buffer.alloc(0)});
+  const gateway=new Gateway(relayUrl.href);t.after(()=>gateway.close());await gateway.ready();
+  const client=[...management.relay.clients].find(socket=>socket.role==='client');
+  assert.equal(client.authorization,'Bearer '+handshakeKey);
+  assert.equal(client.proxyControl,'1');
+  const call=(method,path,auth=apiKey)=>gateway.request({method,path,headers:[{name:'Authorization',value:'Bearer '+auth}],body:Buffer.alloc(0)});
   assert.equal((await call('GET','/v1/proxies','wrong')).status,401);
+  assert.equal((await call('GET','/v1/proxies','other-site')).status,403);
+  assert.equal((await call('GET','/v1/proxies',loginToken)).status,200);
+  assert.equal((await fetch('http://127.0.0.1:'+port+'/v1/proxies',{headers:{Authorization:'Bearer '+loginToken}})).status,200);
   async function state(){const r=await call('GET','/v1/proxies');assert.equal(r.status,200);return JSON.parse(r.body)[0];}
   assert.equal((await state()).enabled,false);
   let connections=0;
@@ -41,4 +65,11 @@ test('management relay stays available while its target disconnects and reconnec
   }
   const data=new Gateway(business.serverUrl);t.after(()=>data.close());await data.ready();
   assert.equal((await data.request({method:'GET',path:'/echo',headers:[],body:Buffer.alloc(0)})).status,201);
+  activeKeys.delete(apiKey);
+  assert.equal((await call('POST','/v1/proxies/1/disconnect')).status,401);
+  authorizationAvailable=false;
+  assert.equal((await call('POST','/v1/proxies/1/disconnect',loginToken)).status,503);
+  authorizationAvailable=true;
+  const afterRevocation=await call('GET','/v1/proxies',loginToken);
+  assert.equal(JSON.parse(afterRevocation.body)[0].enabled,true);
 });

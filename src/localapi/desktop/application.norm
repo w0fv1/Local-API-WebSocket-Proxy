@@ -17,6 +17,7 @@ import std.filesystem.FileFailure
 import std.filesystem.FileWriteMode
 import std.filesystem.openWrite
 import std.filesystem.readText
+import std.http.HeaderMap
 import std.io.TextEncoding
 import std.io.encodeText
 import std.io.writeAll
@@ -83,11 +84,13 @@ class ProxyWindow implements Widget {
       var settings = fromJson<ManagementSettings>(value: readText(path: Path(value: applicationDirectory().value + "/management.json"), encoding: TextEncoding.Utf8, maximumBytes: 16384))
       var scope = currentContext<ViewScope>()!!
       this.management = startManagement(settings: settings, window: this, scope: scope)
-      if settings.controlUrl != "" {
-        var relay = Configuration(controlUrl: settings.controlUrl, localBaseUrl: "http://127.0.0.1:" + settings.port.toString())
-        relay.validate()
+      var apiKey = settings.apiKey ?? ""
+      if apiKey != "" {
+        var relay = Configuration(controlUrl: settings.controlUrl(), localBaseUrl: "http://127.0.0.1:" + settings.port.toString())
         this.managementLink = scope.start<Unit>(() {
-          runProxy(configuration: relay, management: true, status: (String state) {})
+          runProxy(configuration: relay, management: true, status: (String state) {},
+            headers: HeaderMap(k1: "Authorization", v1: "Bearer " + apiKey,
+              k2: "X-Userver-Proxy-Control", v2: "1"))
           return Unit.Value
         })
       }

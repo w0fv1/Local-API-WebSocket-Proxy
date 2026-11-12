@@ -5,7 +5,9 @@ import di.startContainer
 import jakarta.inject.Inject
 import jakarta.inject.Singleton
 import micronaut.http.HttpResponse
+import micronaut.http.HttpStatus
 import micronaut.http.httpResponseOk
+import micronaut.http.httpResponseStatus
 import micronaut.http.httpResponseUnauthorized
 import micronaut.http.annotation.Controller
 import micronaut.http.annotation.Header
@@ -21,6 +23,13 @@ import std.concurrent.startTask
 import std.time.duration
 import std.concurrent.completion
 import std.core.Exception
+import std.http.HeaderMap
+import std.http.HttpException
+import std.http.HttpMethod
+import std.http.Uri
+import std.http.jsonRequest
+import std.http.systemHttpClient
+import std.io.use
 import std.json.toJson
 import std.serialization.Serializable
 import ui.ViewScope
@@ -28,8 +37,39 @@ import ui.ViewScope
 @Serializable()
 value ManagementSettings {
   Integer port
-  String token
-  String controlUrl
+  String userverUrl
+  String channelUuid
+  String? apiKey
+
+  Void validate() {
+    var parts = this.userverUrl.split(separator: "://")
+    if parts.size() != 2 || parts[1].isEmpty() || parts[1].contains(value: "/")
+        || parts[1].contains(value: "?") || parts[1].contains(value: "#")
+        || parts[1].contains(value: "@") || parts[1].contains(value: "\\")
+        || !(parts[0] == "https" || (parts[0] == "http" && parts[1].startsWith(prefix: "127.0.0.1:"))) {
+      throw Exception(message: "Userver URL 必须是 HTTPS 服务地址，本机开发可使用 http://127.0.0.1:端口")
+    }
+    if this.port < 1 || this.port > 65535 || this.channelUuid.codePoints().size() != 32 {
+      throw Exception(message: "无效的管理端口或通道 UUID")
+    }
+    for point : this.channelUuid.codePoints() {
+      if !"0123456789abcdef".contains(value: point.toString()) {
+        throw Exception(message: "无效的管理通道 UUID")
+      }
+    }
+  }
+
+  String controlUrl() {
+    var parts = this.userverUrl.split(separator: "://")
+    String scheme = "wss"
+    if parts[0] == "http" { scheme = "ws" }
+    return scheme + "://" + parts[1] + "/ws/proxy/" + this.channelUuid + "?role=client"
+  }
+}
+
+@Serializable()
+value ControlChannel {
+  String channelUuid
 }
 
 @Serializable()
@@ -42,12 +82,26 @@ value ManagedProxy {
 
 @Singleton()
 class ManagementService {
-  String token = ""
+  ManagementSettings? settings = null
   ProxyWindow? window = null
   ViewScope? scope = null
 
   HttpResponse<String>? handle(String bearer, String operation, Integer id) {
-    if this.token == "" || bearer != "Bearer " + this.token { return httpResponseUnauthorized<String>() }
+    if bearer.isEmpty() { return httpResponseUnauthorized<String>() }
+    var configuration = this.settings!!
+    var request = jsonRequest<ControlChannel>(method: HttpMethod.Post,
+      uri: Uri(value: configuration.userverUrl + "/apim/ws-proxy/control/authorize"),
+      headers: HeaderMap(k1: "Authorization", v1: bearer),
+      body: ControlChannel(channelUuid: configuration.channelUuid))
+    try {
+      var response = systemHttpClient().send(request: request, timeout: duration(seconds: 5, nanoseconds: 0))
+      var status = use<Integer>(resource: response, body: () { return response.status().code })
+      if status == 401 { return httpResponseUnauthorized<String>() }
+      if status == 403 { return httpResponseStatus<String>(arg0: HttpStatus.FORBIDDEN) }
+      if status != 204 { return httpResponseStatus<String>(arg0: HttpStatus.SERVICE_UNAVAILABLE) }
+    } catch HttpException failure {
+      return httpResponseStatus<String>(arg0: HttpStatus.SERVICE_UNAVAILABLE)
+    }
     var dispatcher = this.scope!!
     var owner = this.window!!
     var result = completion<String>()
@@ -108,12 +162,12 @@ class ManagementController {
 }
 
 Container startManagement(ManagementSettings settings, ProxyWindow window, ViewScope scope) {
-  if settings.port < 1 || settings.port > 65535 || settings.token.length() < 32 { throw Exception(message: "Invalid management port or token") }
+  settings.validate()
   var config = MicronautConfig(micronaut: Micronaut(server: Server(host: "127.0.0.1", port: settings.port)))
   var container = startContainer<MicronautConfig>(config: config)
   try {
     var manager = container.get<ManagementService>()
-    manager.token = settings.token
+    manager.settings = settings
     manager.window = window
     manager.scope = scope
     container.get<ManagedServer>().start()
