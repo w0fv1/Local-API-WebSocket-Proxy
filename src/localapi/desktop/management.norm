@@ -63,7 +63,7 @@ value ManagementSettings {
     var parts = this.userverUrl.split(separator: "://")
     String scheme = "wss"
     if parts[0] == "http" { scheme = "ws" }
-    return scheme + "://" + parts[1] + "/ws/proxy/" + this.channelUuid + "?role=client"
+    return scheme + "://" + parts[1] + "/ws/relay/" + this.channelUuid + "?role=client"
   }
 }
 
@@ -90,7 +90,7 @@ class ManagementService {
     if bearer.isEmpty() { return httpResponseUnauthorized<String>() }
     var configuration = this.settings!!
     var request = jsonRequest<ControlChannel>(method: HttpMethod.Post,
-      uri: Uri(value: configuration.userverUrl + "/apim/ws-proxy/control/authorize"),
+      uri: Uri(value: configuration.userverUrl + "/apim/ws-relay/control/authorize"),
       headers: HeaderMap(k1: "Authorization", v1: bearer),
       body: ControlChannel(channelUuid: configuration.channelUuid))
     try {

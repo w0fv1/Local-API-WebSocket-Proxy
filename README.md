@@ -10,7 +10,7 @@ Windows 桌面客户端通过 Nfirco RELAY 通道转发本机 HTTP API 和 WebSo
 远程调用方 → 远程 Gateway → Nfirco RELAY ← 本机桌面客户端 → 本地 HTTP API / CDP
 ```
 
-一个桌面客户端可以管理多个本地 API。每条代理使用独立的 RELAY 通道和 Gateway；多个调用方可以共用同一个 Gateway。协议不包含业务 adapter，不改写 API 响应。
+一个桌面客户端可以管理多个本地 API。每条代理使用独立的 RELAY 通道；多个 Gateway 和 Userver HTTP 调用方可以同时连接。协议不包含业务 adapter，不改写 API 响应。
 
 ## 使用
 
@@ -20,7 +20,7 @@ Windows 桌面客户端通过 Nfirco RELAY 通道转发本机 HTTP API 和 WebSo
 
 ```powershell
 npm ci
-npm run gateway -- "wss://YOUR_HOST/ws/proxy/CHANNEL_UUID?role=server" 8765
+npm run gateway -- "wss://YOUR_HOST/ws/relay/CHANNEL_UUID?role=server" 8765
 ```
 
 界面显示“已就绪”后，通过 `http://127.0.0.1:8765` 调用本地 API 原有路径，保留原有方法、请求头和请求体。Gateway 仅监听其所在电脑的回环地址。
@@ -90,7 +90,8 @@ node --test test/agent.test.mjs test/desktop-transport.test.mjs
 | 桌面状态 | [state.norm](src/localapi/desktop/state.norm) |
 | 连接生命周期 | [application.norm](src/localapi/proxy/application.norm) |
 | 协议与目标地址 | [protocol.norm](src/localapi/proxy/protocol.norm) |
-| 会话与操作调度 | [session.norm](src/localapi/proxy/session.norm) |
+| 共享连接与会话调度 | [session.norm](src/localapi/proxy/session.norm) |
+| 独立会话、请求与隧道 | [peer.norm](src/localapi/proxy/peer.norm) |
 | 有界通讯记录 | [history.norm](src/localapi/proxy/history.norm) |
 | HTTP、分块与 WebSocket | [transfer.norm](src/localapi/proxy/transfer.norm) |
 | 远程 HTTP / WebSocket 入口 | [cli.mjs](gateway/cli.mjs) |

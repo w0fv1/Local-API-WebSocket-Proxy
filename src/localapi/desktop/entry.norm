@@ -162,7 +162,7 @@ class ProxyEntry implements Widget {
       content: Column(gap: 10.0, cross: CrossAlignment.Stretch) {
         Column(gap: 4.0, cross: CrossAlignment.Stretch) {
           Text(text: "中继地址")
-          Input(placeholder: "wss://…/ws/proxy/…?role=client", value: Binding<String>(read: () { this.controlUrl },
+          Input(placeholder: "wss://…/ws/relay/…?role=client", value: Binding<String>(read: () { this.controlUrl },
             write: (String value) { if this.controlUrl != value { this.controlUrl = value this.changed() } }), submit: this.connectFromEditor, enabled: this.task == null)
         }
         Column(gap: 4.0, cross: CrossAlignment.Stretch) {

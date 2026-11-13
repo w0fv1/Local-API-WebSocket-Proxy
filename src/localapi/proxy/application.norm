@@ -28,7 +28,7 @@ Void runProxy(Configuration configuration, Function<Void(String)> status,
         timeout: duration(seconds: 10, nanoseconds: 0))
       var session = Session(configuration: configuration, socket: socket, status: status, history: history, management: management)
       try { session.run() } finally {
-        if session.peer != "" { backoff = 1 }
+        if session.ready { backoff = 1 }
         session.close()
       }
     } catch Exception error {
