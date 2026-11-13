@@ -6,6 +6,46 @@ import { mkdir, writeFile, readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fixture } from './fixture.mjs';
 
+test('independent protocol sessions share one client connection and close independently', { timeout: 30000 }, async t => {
+  const resources = await fixture();
+  t.after(() => resources.close());
+  const cwd = resolve('.tmp/relay-multiple-sessions');
+  await mkdir(cwd, { recursive: true });
+  await writeFile(resolve(cwd, 'proxy.json'), JSON.stringify(resources.configuration));
+  const agent = spawn(resolve('build/agent.exe'), [], { cwd, windowsHide: true, stdio: 'ignore' });
+  t.after(() => agent.kill());
+  const { Gateway } = await import('../gateway/gateway.mjs');
+  const first = new Gateway(resources.serverUrl);
+  const second = new Gateway(resources.serverUrl);
+  t.after(() => { first.close(); second.close(); });
+  await Promise.all([first.ready(), second.ready()]);
+  const physical = [...resources.relay.clients].find(socket => socket.role === 'client');
+  const responses = await Promise.all([first, second].map((gateway, index) =>
+    gateway.request({ method: 'POST', path: '/session-' + index, body: Buffer.from([index, 255, 0]) })));
+  assert.deepEqual(responses[0].body, Buffer.from([0, 255, 0]));
+  assert.deepEqual(responses[1].body, Buffer.from([1, 255, 0]));
+  const tunnels = await Promise.all([first, second].map(gateway => gateway.openTunnel({
+    path: '/devtools/shared', port: resources.echo.address().port, headers: []
+  })));
+  await Promise.all(tunnels.map(async (tunnel, index) => {
+    const response = once(tunnel, 'message');
+    tunnel.send(Buffer.from('session-' + index), false);
+    assert.equal((await response)[0].toString(), 'session-' + index);
+  }));
+  first.close();
+  assert.equal((await second.request({ method: 'GET', path: '/survivor' })).status, 201);
+  const survivingTunnel = once(tunnels[1], 'message');
+  tunnels[1].send(Buffer.from('still-connected'), false);
+  assert.equal((await survivingTunnel)[0].toString(), 'still-connected');
+  tunnels[1].close();
+  const third = new Gateway(resources.serverUrl);
+  t.after(() => third.close());
+  await third.ready();
+  assert.equal((await third.request({ method: 'GET', path: '/new-session' })).status, 201);
+  assert.equal([...resources.relay.clients].find(socket => socket.role === 'client'), physical);
+  assert.equal(agent.exitCode, null);
+});
+
 test('agent forwards HTTP and CDP through a relay and recovers without replay', { timeout: 90000 }, async t => {
   const resources = await fixture();
   const { local, relay } = resources;

@@ -17,7 +17,7 @@ test('management relay stays available while its target disconnects and reconnec
   const activeKeys=new Set([apiKey,loginToken]);
   let authorizationAvailable=true;
   const management=await fixture({relayHttpHandler:async(req,res)=>{
-    if(req.method!=='POST'||req.url!=='/apim/ws-proxy/control/authorize') return res.writeHead(404).end();
+    if(req.method!=='POST'||req.url!=='/apim/ws-relay/control/authorize') return res.writeHead(404).end();
     if(!authorizationAvailable) return res.writeHead(503).end();
     const chunks=[];
     for await(const chunk of req) chunks.push(chunk);
@@ -36,7 +36,7 @@ test('management relay stays available while its target disconnects and reconnec
   for(const file of ['startup.ps1','supervise.ps1']) await copyFile(resolve(file),join(dir,file));
   const relayUrl=new URL(management.serverUrl);
   const userverUrl='http://'+relayUrl.host;
-  relayUrl.pathname='/ws/proxy/'+channelUuid;
+  relayUrl.pathname='/ws/relay/'+channelUuid;
   await writeFile(join(dir,'management.json'),JSON.stringify({port,userverUrl,channelUuid,apiKey:handshakeKey}));
   await writeFile(join(dir,'startup.json'),JSON.stringify({taskName:'Control test '+process.pid}));
   await writeFile(join(dir,'proxy.json'),JSON.stringify({proxies:[{id:1,name:'Local Test',...business.configuration,enabled:false}]}));

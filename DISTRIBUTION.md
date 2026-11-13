@@ -22,7 +22,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
 
 ```powershell
 npm ci --omit=dev
-npm run gateway -- "wss://YOUR_HOST/ws/proxy/CHANNEL_UUID?role=server" 8765
+npm run gateway -- "wss://YOUR_HOST/ws/relay/CHANNEL_UUID?role=server" 8765
 ```
 
 通过 `http://127.0.0.1:8765` 调用原有本地 API 路径。每条代理对应一个 Gateway。

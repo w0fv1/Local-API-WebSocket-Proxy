@@ -65,6 +65,7 @@ export class Gateway extends EventEmitter {
       return;
     }
     if (frame.type === 'pong') return;
+    if (frame.type === 'error' && !this.available) { this.fail(new Error(frame.error)); return; }
     const operation = this.operations.get(frame.id);
     if (!operation) return;
     if (frame.type === 'error') { operation.fail(Object.assign(new Error(frame.error), { code: frame.errorCode ?? 'REMOTE_ERROR', requestId: frame.id, possiblyExecuted: true })); return; }
