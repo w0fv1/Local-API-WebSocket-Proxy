@@ -4,6 +4,7 @@ import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { mkdir, mkdtemp, copyFile, writeFile } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
 import { fixture } from './fixture.mjs';
 import { Gateway } from '../gateway/gateway.mjs';
 
@@ -18,7 +19,7 @@ test('desktop startup restores configuration and survives malformed peer frames'
   for (const file of ['startup.ps1', 'supervise.ps1']) await copyFile(resolve(file), join(directory, file));
   await writeFile(join(directory, 'startup.json'), JSON.stringify({ taskName: `Proxy Transport Test ${process.pid}` }));
   await writeFile(join(directory, 'proxy.json'), JSON.stringify({ proxies: [{
-    id: 1, name: 'Transport regression', ...relay.configuration, enabled: true
+    id: 1, name: 'Transport regression', ...relay.configuration, enabled: true, transferWindow: 3
   }] }));
   const application = spawn(executable, [], { cwd: directory, windowsHide: true, stdio: 'ignore' });
   t.after(() => application.kill());
@@ -33,6 +34,25 @@ test('desktop startup restores configuration and survives malformed peer frames'
   const received = once(tunnel, 'message');
   tunnel.send(Buffer.from('CDP'), false);
   assert.equal((await received)[0].toString(), 'CDP');
+  const send = gateway.send.bind(gateway);
+  const held = [];
+  gateway.send = frame => {
+    if (frame.type === 'ack') held.push(frame);
+    else send(frame);
+  };
+  const burst = Array.from({ length: 7 }, (_, index) => `desktop-${index}`);
+  const delivered = [];
+  tunnel.on('message', data => delivered.push(data.toString()));
+  const [upstream] = relay.echo.clients;
+  for (const message of burst) upstream.send(message);
+  for (let index = 0; index < 100 && held.length < 3; index++) await delay(20);
+  await delay(150);
+  assert.equal(held.length, 3);
+  assert.deepEqual(delivered, burst.slice(0, 3));
+  gateway.send = send;
+  for (const frame of held) send(frame);
+  for (let index = 0; index < 100 && delivered.length < burst.length; index++) await delay(20);
+  assert.deepEqual(delivered, burst);
   tunnel.close();
   const recovered = once(gateway, 'ready');
   gateway.send({ type: 'http.request', id: 'bad-header', headers: [[]] });
