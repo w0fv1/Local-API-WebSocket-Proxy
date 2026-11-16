@@ -15,6 +15,7 @@ import std.io.Bytes
 import std.io.bytes
 import std.io.readAll
 import std.io.use
+import std.time.systemClock
 import std.time.duration
 import std.websocket.WebSocket
 import std.websocket.WebSocketEvent
@@ -100,6 +101,11 @@ Task<HttpReply> forwardHttp(Configuration configuration, Frame request, Bytes bo
   }
 }
 
+class TransferWindow {
+  Integer limit
+  Integer pending = 0
+}
+
 class Download {
   String id
   String type
@@ -108,6 +114,9 @@ class Download {
   Integer? status
   Array<Header>? headers
   Integer offset = 0
+  Integer pending = 0
+  Boolean sent = false
+  Long lastProgress = systemClock().now().epochSecond()
 
   Download(String id, String type, Bytes data, Boolean binary, Integer? status = null, Array<Header>? headers = null) {
     this.id = id this.type = type this.data = data this.binary = binary
@@ -119,8 +128,12 @@ class Download {
     if count > 8192 { count = 8192 }
     var chunk = this.data.slice(start: this.offset, length: count).toArray()
     this.offset = this.offset + count
+    if this.pending == 0 { this.lastProgress = systemClock().now().epochSecond() }
+    this.pending = this.pending + 1
+    this.sent = this.offset == this.data.size()
+    if this.sent { this.data = bytes(values: []) }
     return frame(type: this.type, session: session, id: this.id, data: chunk,
-      end: this.offset == this.data.size(), binary: this.binary, status: this.status, headers: this.headers)
+      end: this.sent, binary: this.binary, status: if this.sent { this.status } else { null }, headers: if this.sent { this.headers } else { null })
   }
 }
 
@@ -129,6 +142,7 @@ class Tunnel {
   WebSocket socket
   Task<WebSocketEvent> incoming
   Upload upload
+  Frame? terminal = null
 
   Tunnel(String id, WebSocket socket, Frame request) {
     this.id = id this.socket = socket this.upload = Upload(request: request)

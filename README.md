@@ -33,6 +33,8 @@ ws://127.0.0.1:8765/__ws?port=9222&path=%2Fdevtools%2Fbrowser%2FID
 
 WebSocket 始终连接 Local Base URL 的主机，允许指定动态端口。当前不协商 WebSocket 子协议。HTTP 请求体、响应体及单条 WebSocket 消息上限为 8 MiB；长时间 HTTP 流不在支持范围内。容量和超时以 [Gateway](gateway/gateway.mjs) 与 [传输实现](src/localapi/proxy/transfer.norm) 为准。
 
+响应发送窗口由 [Configuration](src/localapi/proxy/protocol.norm) 配置，所有会话共享物理连接额度；[Session](src/localapi/proxy/session.norm) 轮转调度会话，[Peer](src/localapi/proxy/peer.norm) 轮转调度响应并回收超时确认。上传仍采用逐块确认。配置边界、窗口上限、跨会话隔离、取消与终止顺序由[传输窗口验收](test/window.test.mjs)验证。
+
 连接配置保存在 EXE 同目录的 `proxy.json`，结构见 [ProxySettings](src/localapi/proxy/settings.norm)。桌面操作见 [ProxyWindow](src/localapi/desktop/application.norm)，连接状态见 [ProxyStatus](src/localapi/desktop/state.norm)，生命周期见 [ProxyEntry](src/localapi/desktop/entry.norm)。
 
 安装登录自启与进程恢复：

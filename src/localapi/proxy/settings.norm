@@ -10,11 +10,12 @@ value ProxyDefinition {
   String controlUrl
   String localBaseUrl
   Boolean enabled
+  Integer? transferWindow = null
 
   Configuration configuration() {
     String local = this.localBaseUrl.trim()
     if local.endsWith(suffix: "/") { local = local.sliceCodePoints(start: 0, end: local.codePoints().size() - 1) }
-    var result = Configuration(controlUrl: this.controlUrl.trim(), localBaseUrl: local)
+    var result = Configuration(controlUrl: this.controlUrl.trim(), localBaseUrl: local, transferWindow: this.transferWindow)
     result.validate()
     return result
   }
