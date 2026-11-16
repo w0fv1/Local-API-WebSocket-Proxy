@@ -1,7 +1,7 @@
 package localapi.proxy
 
-import std.core.Exception
 import std.collections.listContains
+import std.core.Exception
 import std.http.Uri
 import std.http.HttpException
 import std.http.HttpFailure
@@ -22,6 +22,7 @@ import std.websocket.connectWebSocket
 
 class Peer {
   Configuration configuration
+  TransferWindow window
   Function<Void(Frame)> emit
   Boolean management
   String peer
@@ -30,21 +31,55 @@ class Peer {
   List<HttpWork> requests = []
   List<Tunnel> tunnels = []
   List<Download> downloads = []
+  Integer nextDownload = 0
 
-  Peer(Configuration configuration, Function<Void(Frame)> emit, Boolean management, String peer, Long lastSeen) {
-    this.configuration = configuration this.emit = emit this.management = management
+  Peer(Configuration configuration, TransferWindow window, Function<Void(Frame)> emit, Boolean management, String peer, Long lastSeen) {
+    this.configuration = configuration this.window = window this.emit = emit this.management = management
     this.peer = peer this.lastSeen = lastSeen
   }
 
   Void send(Frame message) { this.emit(message) }
 
+  Integer httpOperationCount() {
+    Integer result = this.uploads.size() + this.requests.size()
+    for Download download : this.downloads { if download.type == "http.response" { result = result + 1 } }
+    return result
+  }
+
+  Boolean pumpOne() {
+    Integer checked = 0
+    for checked < this.downloads.size() && this.window.pending < this.window.limit {
+      this.nextDownload = this.nextDownload % this.downloads.size()
+      var download = this.downloads[this.nextDownload]
+      this.nextDownload = this.nextDownload + 1
+      checked = checked + 1
+      if !download.sent {
+        this.send(message: download.next(session: this.peer))
+        this.window.pending = this.window.pending + 1
+        return true
+      }
+    }
+    return false
+  }
+
   Void close() {
     for HttpWork work : this.requests { work.task.cancel() work.task.close() }
     for Tunnel tunnel : this.tunnels { tunnel.close() }
+    for Download download : this.downloads { this.window.pending = this.window.pending - download.pending }
     this.uploads = [] this.requests = [] this.tunnels = [] this.downloads = []
   }
 
   Void tick() {
+      List<String> stalled = []
+      Long now = systemClock().now().epochSecond()
+      for Download download : this.downloads {
+        if download.pending > 0 && now - download.lastProgress >= 30 && !listContains(values: stalled, target: download.id) { stalled.add(download.id) }
+      }
+      for String id : stalled {
+        this.handle(message: frame(type: "cancel", session: this.peer, id: id))
+        this.send(message: frame(type: "error", session: this.peer, id: id, error: "Response acknowledgement timed out", errorCode: "ACK_TIMEOUT"))
+      }
+
       List<HttpWork> completed = []
       for HttpWork work : this.requests {
         if work.task.completed() {
@@ -54,7 +89,7 @@ class Peer {
             var download = Download(id: work.id, type: "http.response", data: result.body, binary: true,
               status: result.status, headers: result.headers)
             this.downloads.add(download)
-            this.send(message: download.next(session: this.peer))
+
           } catch HttpException error {
             String code = "REMOTE_ERROR"
             if error.reason == HttpFailure.Timeout { code = "REQUEST_TIMEOUT" }
@@ -69,34 +104,45 @@ class Peer {
       for HttpWork work : completed { this.requests = without<HttpWork>(values: this.requests, target: work) work.task.close() }
       List<Tunnel> closed = []
       for Tunnel tunnel : this.tunnels {
+        if tunnel.terminal != null {
+          Boolean waiting = false
+          for Download download : this.downloads { if download.id == tunnel.id { waiting = true } }
+          if !waiting { this.send(message: tunnel.terminal!!) closed.add(tunnel) }
+        } else {
         Boolean downloading = false
-        for Download download : this.downloads { if download.id == tunnel.id { downloading = true } }
+        Integer retained = 0
+        for Download download : this.downloads {
+          if download.id == tunnel.id {
+            if !download.sent { downloading = true }
+            retained = retained + download.data.size()
+          }
+        }
+        if this.window.pending >= this.window.limit || retained >= 8388608 { downloading = true }
         if !downloading && tunnel.incoming.completed() {
           try {
             switch tunnel.incoming.await() {
               case Text(String text) {
                 var download = Download(id: tunnel.id, type: "ws.data", data: encodeText(text: text, encoding: TextEncoding.Utf8), binary: false)
-                this.downloads.add(download) this.send(message: download.next(session: this.peer))
+                this.downloads.add(download)
               }
               case Binary(Bytes data) {
                 var download = Download(id: tunnel.id, type: "ws.data", data: data, binary: true)
-                this.downloads.add(download) this.send(message: download.next(session: this.peer))
+                this.downloads.add(download)
               }
               case Pong(_) {}
               case Closed(Integer code, _) {
-                this.send(message: frame(type: "ws.closed", session: this.peer, id: tunnel.id, status: code))
-                closed.add(tunnel)
+                tunnel.terminal = frame(type: "ws.closed", session: this.peer, id: tunnel.id, status: code)
               }
             }
           } catch WebSocketException error {
             if error.reason != WebSocketFailure.Timeout {
-              this.send(message: frame(type: "error", session: this.peer, id: tunnel.id, error: error.message))
-              closed.add(tunnel)
+              tunnel.terminal = frame(type: "error", session: this.peer, id: tunnel.id, error: error.message)
             }
           }
           tunnel.incoming.close()
-          if !listContains(values: closed, target: tunnel) { tunnel.incoming = tunnel.read() }
+          if tunnel.terminal == null { tunnel.incoming = tunnel.read() }
         }
+      }
       }
       for Tunnel tunnel : closed { tunnel.close() this.tunnels = without<Tunnel>(values: this.tunnels, target: tunnel) }
   }
@@ -108,18 +154,24 @@ class Peer {
       if message.type == "ping" { this.send(message: frame(type: "pong", session: this.peer)) return }
       if message.type == "ack" {
         Download? selected = null
-        for Download download : this.downloads { if download.id == message.id { selected = download } }
+        for Download download : this.downloads { if selected == null && download.id == message.id && download.pending > 0 { selected = download } }
         if selected != null {
-          if selected.offset == selected.data.size() { this.downloads = without<Download>(values: this.downloads, target: selected) }
-          else { this.send(message: selected.next(session: this.peer)) }
+          selected.lastProgress = systemClock().now().epochSecond()
+          selected.pending = selected.pending - 1
+          this.window.pending = this.window.pending - 1
+          if selected.sent && selected.pending == 0 { this.downloads = without<Download>(values: this.downloads, target: selected) }
+
         }
         return
       }
-      if message.type == "http.request" {
-        if this.uploads.size() + this.requests.size() + this.downloads.size() >= 16 { throw Exception(message: "request capacity exceeded") }
+      if message.type == "http.request" || message.type == "ws.open" {
         for Upload upload : this.uploads { if upload.request.id == message.id { throw Exception(message: "duplicate id") } }
         for HttpWork work : this.requests { if work.id == message.id { throw Exception(message: "duplicate id") } }
         for Download download : this.downloads { if download.id == message.id { throw Exception(message: "duplicate id") } }
+        for Tunnel tunnel : this.tunnels { if tunnel.id == message.id { throw Exception(message: "duplicate id") } }
+      }
+      if message.type == "http.request" {
+        if this.httpOperationCount() >= 16 { throw Exception(message: "request capacity exceeded") }
         this.uploads.add(Upload(request: message))
       }
       if message.type == "http.request" || message.type == "http.body" {
@@ -136,7 +188,6 @@ class Peer {
       }
       if message.type == "ws.open" {
         if this.tunnels.size() >= 8 { throw Exception(message: "tunnel capacity exceeded") }
-        for Tunnel tunnel : this.tunnels { if tunnel.id == message.id { throw Exception(message: "duplicate tunnel") } }
         var socket = connectWebSocket(uri: Uri(value: requestTarget(configuration: this.configuration, request: message, websocket: true)),
           timeout: duration(seconds: 10, nanoseconds: 0), headers: requestHeaders(headers: message.headers ?? []), maximumMessageBytes: 8388608)
         this.tunnels.add(Tunnel(id: message.id, socket: socket, request: message))
@@ -166,8 +217,9 @@ class Peer {
         for Upload upload : this.uploads { if upload.request.id != message.id { uploads.add(upload) } }
         this.uploads = uploads
         List<Download> downloads = []
-        for Download download : this.downloads { if download.id != message.id { downloads.add(download) } }
+        for Download download : this.downloads { if download.id != message.id { downloads.add(download) } else { this.window.pending = this.window.pending - download.pending } }
         this.downloads = downloads
+
         return
       }
       throw Exception(message: "unknown frame type")

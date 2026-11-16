@@ -5,12 +5,19 @@ import std.http.HttpHeader
 import std.http.HeaderMap
 import std.core.Exception
 
+Integer transferWindowDefault() { return 8 }
+Integer transferWindowMinimum() { return 1 }
+Integer transferWindowMaximum() { return 16 }
+
 @Serializable()
 value Configuration {
   String controlUrl
   String localBaseUrl
+  Integer? transferWindow = null
 
   Void validate() {
+    var window = this.transferWindow ?? transferWindowDefault()
+    if window < transferWindowMinimum() || window > transferWindowMaximum() { throw Exception(message: "Invalid transfer window") }
     if !(this.controlUrl.startsWith(prefix: "ws://") || this.controlUrl.startsWith(prefix: "wss://")) {
       throw Exception(message: "Control URL 必须以 ws:// 或 wss:// 开头")
     }

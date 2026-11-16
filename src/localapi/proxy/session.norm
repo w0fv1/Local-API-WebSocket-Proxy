@@ -12,6 +12,7 @@ import std.websocket.WebSocketFailure
 
 class Session {
   Configuration configuration
+  TransferWindow window
   WebSocket socket
   Function<Void(String)> status
   CommunicationHistory history
@@ -20,9 +21,11 @@ class Session {
   Long lastPing = 0
   Long lastPong = 0
   List<Peer> peers = []
+  Integer nextPeer = 0
 
   Session(Configuration configuration, WebSocket socket, Function<Void(String)> status, CommunicationHistory history, Boolean management = false) {
     this.configuration = configuration this.socket = socket this.status = status
+    this.window = TransferWindow(limit: configuration.transferWindow ?? transferWindowDefault())
     this.history = history this.management = management
   }
 
@@ -62,7 +65,7 @@ class Session {
                 if this.peers.size() >= 16 {
                   this.send(message: frame(type: "error", session: message.session, id: message.id, error: "session capacity exceeded"))
                 } else {
-                  var created = Peer(configuration: this.configuration, emit: (Frame reply) { this.send(message: reply) },
+                  var created = Peer(configuration: this.configuration, window: this.window, emit: (Frame reply) { this.send(message: reply) },
                     management: this.management, peer: message.session, lastSeen: now)
                   this.peers.add(created)
                   selected = created
@@ -83,7 +86,7 @@ class Session {
                 Integer requests = 0
                 Integer tunnels = 0
                 for Peer peer : this.peers {
-                  requests = requests + peer.uploads.size() + peer.requests.size() + peer.downloads.size()
+                  requests = requests + peer.httpOperationCount()
                   tunnels = tunnels + peer.tunnels.size()
                 }
                 if ((message.type == "http.request" && requests >= 16) || (message.type == "ws.open" && tunnels >= 8)) {
@@ -105,6 +108,13 @@ class Session {
         else { peer.tick() }
       }
       for Peer peer : expired { this.peers = without<Peer>(values: this.peers, target: peer) }
+      Integer idle = 0
+      for idle < this.peers.size() && this.window.pending < this.window.limit {
+        this.nextPeer = this.nextPeer % this.peers.size()
+        var peer = this.peers[this.nextPeer]
+        this.nextPeer = this.nextPeer + 1
+        if peer.pumpOne() { idle = 0 } else { idle = idle + 1 }
+      }
     }
   }
 }

@@ -1,5 +1,8 @@
 package localapi.desktop
 
+import localapi.proxy.transferWindowDefault
+import localapi.proxy.transferWindowMinimum
+import localapi.proxy.transferWindowMaximum
 import localapi.proxy.ProxyDefinition
 import localapi.proxy.CommunicationHistory
 import localapi.proxy.runProxy
@@ -37,6 +40,7 @@ class ProxyEntry implements Widget {
   String controlUrl
   String localBaseUrl
   Boolean enabled
+  Integer transferWindow
   Function<Void()> save
   Function<Void()> changed
   Function<Void(ProxyEntry)> remove
@@ -52,11 +56,12 @@ class ProxyEntry implements Widget {
     this.selection = selection
     this.id = definition.id this.name = definition.name
     this.controlUrl = definition.controlUrl this.localBaseUrl = definition.localBaseUrl
+    this.transferWindow = definition.transferWindow ?? transferWindowDefault()
     this.enabled = definition.enabled this.save = save this.changed = changed this.remove = remove
   }
 
   ProxyDefinition definition() {
-    return ProxyDefinition(id: this.id, name: this.name, controlUrl: this.controlUrl, localBaseUrl: this.localBaseUrl, enabled: this.enabled)
+    return ProxyDefinition(id: this.id, name: this.name, controlUrl: this.controlUrl, localBaseUrl: this.localBaseUrl, enabled: this.enabled, transferWindow: this.transferWindow)
   }
 
   Void attach(ViewScope owner) {
@@ -170,6 +175,11 @@ class ProxyEntry implements Widget {
           Input(placeholder: "http://127.0.0.1:54345", value: Binding<String>(read: () { this.localBaseUrl },
             write: (String value) { if this.localBaseUrl != value { this.localBaseUrl = value this.changed() } }), submit: this.connectFromEditor, enabled: this.task == null)
         }
+        Text(text: "传输并发：" + this.transferWindow.toString())
+        Flex(gap: 8.0, items: [
+          FlexItem(content: Button(text: "−", enabled: this.task == null && this.transferWindow > transferWindowMinimum(), action: () { this.transferWindow = this.transferWindow - 1 this.changed() })),
+          FlexItem(content: Button(text: "+", enabled: this.task == null && this.transferWindow < transferWindowMaximum(), action: () { this.transferWindow = this.transferWindow + 1 this.changed() }))
+        ])
         if this.status.detail != "" { Text(text: this.status.detail, role: WidgetRole.Destructive) }
       },
       bottom: Flex(gap: 8.0, cross: CrossAlignment.Center, items: [
